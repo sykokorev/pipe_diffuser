@@ -7,9 +7,9 @@ def factorial(n: int) -> int:
         return n * factorial(n - 1)
 
 
-def linspace(n1: float, n2: float, np: int) -> list:
-    delta = (n2 - n1) / (np - 1)
-    return [n1 + i * delta for i in range(np)]
+def linspace(start: float, stop: float, num_points: int) -> list:
+    delta = (stop - start) / (num_points - 1)
+    return [start + i * delta for i in range(num_points)]
 
 
 def arange(start: float=0.0, stop: float=1.0, step: float=0.1):

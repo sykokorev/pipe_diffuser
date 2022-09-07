@@ -1,6 +1,6 @@
 from mathlib.math import *
 from mathlib.matrix import *
-
+from mathlib.gaussian_quadrature import GQ as gq
 
 class BaseBezier:
 
@@ -78,13 +78,15 @@ class BaseBezier:
     def get_points(self, t: list) -> list:
         return [self.get_point(ti) for ti in t]
 
-    def get_length(self, t1: float = 0.0, t2: float = 1.0, accuracy: int = 10 ** 3) -> float:
-        t = linspace(t1, t2, accuracy)
-        points = self.get_points(t=t)
+    def get_length(self, n: int=5, t1: float=0.0, t2: float=1.0):
+        w = gq[n][0]
+        x = gq[n][1]
         length = 0.0
-        for i, point in enumerate(points[:-1]):
-            length += (sum((point[j] - points[i + 1][j]) ** 2 for j in range(self.dimention))) ** 0.5
-        
+        for i in range(n):
+            ti = (t2 - t1) * x[i] / 2 + (t2 - t1) / 2
+            ft = sum([p ** 2 for p in self.derivative(t=ti)]) ** 0.5
+            length += w[i] * ft
+        length *= (t2 - t1) / 2
         return length
 
     def get_coordinates(self, npoints: int = 0, start: float=0.0, stop: float=1.0) -> list:
@@ -130,17 +132,30 @@ class BaseBezier:
         
         return [n * p for p in point]
 
-    def get_partial_length_point(self, length: float=0.0, t1: float=0.0, t2: float=1.0):
-        pass
+    def get_point_length(self, length: float=0.0, t1: float = 0.0, t2: float = 1.0):
+        eps = 10 ** -3
 
+        if (length - 0) <= eps:
+            return 0.0, self.get_point(t=0.0)
+        elif abs(length - self.get_length()) <= eps:
+            return 1.0, self.get_point(t=1.0)
 
+        cur_len = 0.0
+        count = 0.0
+        max_count = 10 ** 5
 
-    # def get_partial_length_t(self, length:float=0.0, accuracy: float=10**-3) -> float:
-    #     t = arange(0.0, 1.001, accuracy * 10 ** -1)
-    #     for ti in t:
-    #         if abs(length - self.get_length(t1=0.0, t2=ti)) < accuracy:
-    #             return ti, self.get_point(t=ti)
-    #     return -1
+        while abs(cur_len - length) > eps:
+            if length > cur_len:
+                t2 = t2 + 0.1 * t2
+            elif length < cur_len:
+                t2 = t2 - 0.1 * t2
+
+            cur_len = self.get_length(t1=0.0, t2=t2)
+            count += 1
+            if count > max_count:
+                return False
+
+        return t2, self.get_point(t=t2)
 
     def __repr__(self):
         return f'BaseBezier\ndegree {self.degree};\n' \
@@ -229,30 +244,23 @@ class BezierThroughPoints(BaseBezier):
 
         curve_indices = [self.__get_curve_idx(point=(points[0], p)) for p in points[1]]
         out = []
+
         for i, index in enumerate(curve_indices):
             if index >= 0:
                 t = self.curves[index].get_t(point=(points[0], points[1][i]))
                 out.append(self.curves[index].get_point(t=t))
 
+        return out
+
     def norm_length_point(self, norm_length: float=0.0) -> list:
+
         length = self.length * norm_length
-        idx = self.__get_curve_length_idx(length=length)
-        return self.curves[idx].get_partial_length_t(length=length)
+        idx, ln = self.__get_curve_length_idx(length=length)
 
-    def __get_curve_length_idx(self, length: float):
-        lengths = [c.get_length() for c in self.curves]
-        l = 0.0
-        for i, ln in enumerate(lengths):
-            l += ln
-            if l >= length:
-                return i - 1
-        return -1
-
-    def __get_curve_idx(self, point: tuple):
-        curve_points = [curve.first_point for curve in self.curves]
-        curve_points.append(self.curves[-1].last_point)
-        idx = span(point[1], list(zip(*curve_points))[point[0]])
-        return idx
+        if idx == -1:
+            return -1
+        else:
+            return self.curves[idx].get_point_length(length=ln)
 
     def get_coordinates(self, npoints: int = 0) -> list:
 
@@ -269,6 +277,22 @@ class BezierThroughPoints(BaseBezier):
         coordinates.append(self.points[-1])
 
         return coordinates
+
+    def __get_curve_length_idx(self, length: float):
+        lengths = [c.get_length() for c in self.curves]
+        l = 0.0
+        for i, ln in enumerate(lengths):
+            l += ln
+            if l >= length:
+                return i, length - sum(lengths[:i])
+
+        return -1, -1
+
+    def __get_curve_idx(self, point: tuple):
+        curve_points = [curve.first_point for curve in self.curves]
+        curve_points.append(self.curves[-1].last_point)
+        idx = span(point[1], list(zip(*curve_points))[point[0]])
+        return idx
 
     def _get_coordinates(self, n, t, points) -> list:
         return super()._get_coordinates(n, t, points)
