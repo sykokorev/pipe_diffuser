@@ -29,8 +29,31 @@ def matmul(m1: list, m2: list):
         for j in range(len(m2[0])):
             for k in range(len(m2)):
                 mult[i][j] += m1[i][k] * m2[k][j]
-       
+
     return mult
+
+
+def dot(m1: list, m2: list) -> float or bool:
+
+    if len(m1) != len(m2):
+        raise ValueError('Shapes of matrices not aligned')
+    
+    try:
+        if len(m1[0]) != len(m2[0]):
+            return ValueError('Shape of matrices not aligned')
+        elif len(m1[0]) != len(m1):
+            raise ValueError('Shapes of fmatrices not aligned')
+        col = len(m1[0])        
+    except TypeError:
+        col = 0
+
+    if not col:
+        return sum([m1i * m2i for (m1i, m2i) in zip(m1, m2)])
+    else:
+        out = 0.0
+        for m1i, m2i in zip(m1, m2):
+            out += sum(m1ij * m2ij for (m1ij, m2ij) in zip(m1i, m2i))
+        return out
 
 
 def transpose(m) -> list:

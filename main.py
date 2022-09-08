@@ -1,3 +1,4 @@
+from audioop import cross
 import sys
 import os
 import logging
@@ -5,7 +6,7 @@ import logging
 import utils.p1112_parser as p1112
 from mathlib.math import *
 from mathlib.bezier import *
-from mathlib.line import *
+from mathlib.line_interpolation import LineInterpolation
 from diffuser.pipe_diffuser import PipeDiffuser as diffuser
 
 
@@ -86,8 +87,11 @@ if __name__ == "__main__":
     mean_line_length = pipe_diffuser.get_mean_line_length()
     length = [mean_line_length * nl for nl in norm_length]
 
+    point = xbeta_bezier.get_point(point=(0, 3.5))
+
     wh_points = wh_line.interpolate(points=length)
     area_points = area_line.interpolate(points=length)
-    
-    for a in area_points:
-        print(*a)    
+
+    cross_section = pipe_diffuser.compute_cross_section(
+            wh=wh_points[20][1], area=area_points[20][1], num_points=200
+        )

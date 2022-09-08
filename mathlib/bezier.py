@@ -132,7 +132,7 @@ class BaseBezier:
         
         return [n * p for p in point]
 
-    def get_point_length(self, length: float=0.0, t1: float = 0.0, t2: float = 1.0):
+    def get_length_point(self, length: float=0.0, t1: float = 0.0, t2: float = 1.0):
         eps = 10 ** -3
 
         if (length - 0) <= eps:
@@ -154,7 +154,6 @@ class BaseBezier:
             count += 1
             if count > max_count:
                 return False
-
         return t2, self.get_point(t=t2)
 
     def __repr__(self):
@@ -235,7 +234,8 @@ class BezierThroughPoints(BaseBezier):
         idx = self.__get_curve_idx(point=point)
         if idx >= 0:
             t = self.curves[idx].get_t(point=(point[0], point[1]))
-            point = self.curves[idx].get_point(t=t)
+            curve = self.curves[idx]
+            point = curve.get_point(t=t)
             return (t, point)
         else:
             return -1
@@ -260,7 +260,7 @@ class BezierThroughPoints(BaseBezier):
         if idx == -1:
             return -1
         else:
-            return self.curves[idx].get_point_length(length=ln)
+            return self.curves[idx].get_length_point(length=ln)
 
     def get_coordinates(self, npoints: int = 0) -> list:
 
@@ -277,6 +277,13 @@ class BezierThroughPoints(BaseBezier):
         coordinates.append(self.points[-1])
 
         return coordinates
+
+    def derivatives(self, norm_length: float=0.0) -> list:
+        length = norm_length * self.length
+        idx, ln = self.__get_curve_length_idx(length=length)
+        point = self.curves[idx].get_length_point(length=ln)
+        t = self.curves[idx].get_t(point=(0, point[1][0]))
+        return self.curves[idx].derivative(t=t)
 
     def __get_curve_length_idx(self, length: float):
         lengths = [c.get_length() for c in self.curves]
@@ -309,6 +316,6 @@ class BezierThroughPoints(BaseBezier):
         control_points = []
 
         for i in range(self.num_curves):
-            control_points.append([self.points[i], *cp[2 * i:2 * i + 2], self.points[i + 1]])
+            control_points.append([[*self.points[i]], *cp[2 * i:2 * i + 2], [*self.points[i + 1]]])
 
         return control_points

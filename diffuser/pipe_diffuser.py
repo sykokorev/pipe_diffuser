@@ -1,8 +1,8 @@
 import math
-from traceback import print_tb
 
 from mathlib.bezier import BezierThroughPoints as bezier
 from mathlib.gaussian_quadrature import GQ as gq
+from mathlib.shape import Circle, Line
 
 
 class PipeDiffuser:
@@ -51,6 +51,14 @@ class PipeDiffuser:
     @property
     def mean_line(self):
         return self.__mean_line
+
+    @property
+    def area(self):
+        return self.__area
+
+    @property
+    def wh(self):
+        return self.__wh
 
     @num_pipes.setter
     def num_pipes(self, value: int):
@@ -117,5 +125,26 @@ class PipeDiffuser:
         else:
             return 0.0
 
-    def compute_cross_section(self):
-        pass
+    def compute_cross_section(self, wh: float=1.0, area: float=1.0, num_points: int=40):
+
+        h = 2 * (area / (wh - 1 + math.pi)) ** 0.5
+        w = wh * h
+        c1 = Circle(center=[-w/2+h/2, 0.0], radius=h/2)
+        c2 = Circle(center=[w/2-h/2, 0.0], radius=h/2)
+        
+        if wh == 1:
+            points = [
+                *c1.get_points(a1=3*math.pi/2, a2=math.pi/2, num_points=int(num_points/2)),
+                *c2.get_points(a1=math.pi/2, a2=-math.pi/2, num_points=int(num_points/2)),
+            ]
+        else:
+            line1 = Line(points=[[-w/2+h/2, h/2], [w/2-h/2, h/2]])
+            line2 = Line(points=[[w/2-h/2, -h/2], [-w/2+h/2, -h/2]])
+            points = [
+                *c1.get_points(a1=3*math.pi/2, a2=math.pi/2, num_points=int(num_points/4)),
+                *line1.get_points(num_points=int(num_points/4)),
+                *c2.get_points(a1=math.pi/2, a2=-math.pi/2, num_points=int(num_points/4)),
+                *line2.get_points(num_points=int(num_points/4))
+            ]
+
+        return points
