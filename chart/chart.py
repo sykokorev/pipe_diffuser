@@ -1,3 +1,4 @@
+from ast import Index
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -66,7 +67,8 @@ class PlotData:
 
     def add_2Dgraph(self, ax: plt.axis, data: np.array([]), **kwargs):
 
-        x, y = data[:, 0], data[:, 1]
+        x = [xi[0] for xi in data]
+        y = [yi[0] for yi in data]
 
         if kwargs.get('limits'):
             limits = self.__set_limits(ax, x, y)
@@ -88,7 +90,12 @@ class PlotData:
 
     def add_3Dgraph(self, ax: plt.axis, data: np.array([]), **kwargs):
 
-        x, y, z = data[:, 0], data[:, 1], data[:, 2]
+        try:
+            x = [xi[0] for xi in data]
+            y = [yi[1] for yi in data]
+            z = [zi[2] for zi in data]
+        except (IndexError, TypeError):
+            x, y, z = data[0], data[1], data[2]
 
         params = {
             'color': kwargs.get('color', 'r'),
@@ -103,9 +110,19 @@ class PlotData:
     def plt_2Dgraph(self, data: np.array = np.zeros(shape=(0))):
 
         if not data.size:
-            x, y = self.data[:, 0], self.data[:, 1]
+            try:
+                x = [xi[0] for xi in self.data]
+                y = [yi[1] for yi in self.data]
+            except (IndexError, TypeError):
+                x = self.data[0]
+                y = self.data[1]
         else:
-            x, y, = data[:, 0], data[:, 1]
+            try:
+                x = [xi[0] for xi in data]
+                y = [yi[0] for yi in data]
+            except (IndexError, TypeError):
+                x = data[0]
+                y = data[1]
 
         self.__fig, self.__ax = plt.subplots(
             sharex=self.shared_axis[0],
@@ -149,7 +166,12 @@ class PlotData:
         self.__fig = plt.figure()
 
         self.__ax = self.__fig.add_subplot(111, projection='3d')
-        x, y, z = self.data[:, 0], self.data[:, 1], self.data[:, 2]
-        self.__ax.plot(x, y, z, label=self.label)
+        try:
+            x = [xi[0] for xi in self.data]
+            y = [yi[1] for yi in self.data]
+            z = [zi[2] for zi in self.data]
+        except (IndexError, TypeError):
+            x, y, z = self.data[0], self.data[1], self.data[2]
+        self.__ax.plot(x, y, z, label=self.label, **kwargs)
 
         return self.__fig, self.__ax

@@ -12,13 +12,18 @@ class LineInterpolation(Line):
                 Line(points=[self.points[i-1], self.points[i]])
                 for i in range(1, self.__num_lines)
             ]
+        self.__lengths = [line.get_length() for line in self.lines]
         
     @property
     def num_lines(self):
         return self.__num_lines
+    
+    @property
+    def lengths(self):
+        return self.__lengths
 
     def get_length(self):
-        return sum(line.get_length() for line in self.lines)
+        return sum(self.__lengths)
 
     def interpolate(self, points: list):
         out = []
@@ -29,6 +34,3 @@ class LineInterpolation(Line):
                     out.append(line.get_point(abscissa=point))
 
         return out
-
-    def __lengths(self):
-        return [line.get_length() for line in self.lines]
