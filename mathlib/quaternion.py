@@ -3,7 +3,7 @@ import mathlib.vector as vec
 
 
 class Quaternion:
-    def __init__(self, scalar: float, vector: list):
+    def __init__(self, scalar: float=0.0, vector: list=[0.0, 0.0, 0.0]):
         self.__v = [round(vi, 4) for vi in vector]
         self.__s = round(scalar, 4)
 
@@ -54,19 +54,22 @@ class Quaternion:
         if hasattr(vector, '__iter__') and all([isinstance(item, (float, int)) for item in vector]):
             self.__v = vector
 
+    @property
+    def norm(self):
+        return round((self.q0 ** 2 + sum(q ** 2 for q in self.vector)) ** 0.5, 4)
+
     def __repr__(self):
-        return f'{self.__class__.__name__}\tRe: {self.Re}\tIm: {self.Im}\n' \
-               f'{self.__class__.__name__}:\t{self.Re} + ({self.q1})i + ({self.q2})j + ({self.q3})k\n' \
-               f'Norm:\t{self.norm()}\n'
+        return f'{self.__class__.__name__}\tRe: {round(self.Re, 5)}\t' \
+               f'Im: [{mat.fprt_mat(m=self.Im, rnd=True, dec=5)}]\n' \
+               f'{self.__class__.__name__}:\t{round(self.Re, 5)} + ({round(self.q1, 5)})i ' \
+               f'+ ({round(self.q2, 5)})j + ({round(self.q3, 5)})k\n' \
+               f'Norm:\t{round(self.norm, 5)}\n'
 
     def conjugate(self):
-        return Quaternion(scalar=self.__s, vector=self.__v)
-
-    def norm(self):
-        return (self.q0 ** 2 + sum(q ** 2 for q in self.vector)) ** 0.5
+        return Quaternion(scalar=self.__s, vector=vec.scalar_vector(scalar=-1, vector=self.__v))
 
     def inverse(self):
-        d = self.norm() ** 2
+        d = self.norm ** 2
         return Quaternion(scalar=self.scalar / d, vector=vec.scalar_vector(scalar=-1/d, vector=self.vector))
 
     def addition(self, q: object) -> object:
@@ -99,15 +102,14 @@ class Quaternion:
         return Quaternion(scalar=0.0, vector=vc)
 
     def normed(self):
-        d = self.norm()
+        d = self.norm
         self.__v = vec.scalar_vector(scalar=1/d, vector=self.vector)
         self.__s = self.__s / d 
 
     def scalar_product(self, scalar: float) -> object:
         return Quaternion(scalar=self.scalar*scalar, vector=vec.scalar_vector(scalar=scalar, vector=self.vector))
 
-    def derivate(self, delq: object, delt) -> object:
+    def derivate(self, delq: object, delt: float) -> object:
         derivative = self.substraction(delq)
         derivative = self.scalar_product(scalar=1/delt)
         return derivative
-

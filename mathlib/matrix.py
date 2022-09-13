@@ -1,3 +1,5 @@
+
+
 def prt_vec (v: list, desc: str='#'*50, dec: int=3) -> None:
     if v:
         print(desc)
@@ -18,6 +20,23 @@ def prt_mat(m: list, desc: str='#'*50, rnd: bool=False, dec: int=3) -> None:
         print(desc)
     else:
         print('Not a matrix')
+
+
+def fprt_mat(m: list, rnd: bool=False, dec: int=5):
+    string = ''
+    for row in m:
+        try:
+            if rnd:
+                string += '{value}\n'.format(value=[round(val, dec) for val in row])
+            else:
+                string += '{value}\n'.format(value=[val for val in row])
+        except (TypeError, IndexError):
+            if rnd:
+                string += '{}\t'.format(round(row, dec))
+            else:
+                string += '{}\t'.format(row)
+    return string
+
 
 def matmul(m1: list, m2: list):
 
@@ -54,6 +73,16 @@ def dot(m1: list, m2: list) -> float or bool:
         for m1i, m2i in zip(m1, m2):
             out += sum(m1ij * m2ij for (m1ij, m2ij) in zip(m1i, m2i))
         return out
+
+
+def scalar_addition(scalar: float, matrix: list) -> list:
+    for i, row in enumerate(matrix):
+        try:
+            matrix[i] = [scalar * col for col in row]
+        except (TypeError, IndexError):
+            matrix[i] = scalar * row
+
+    return matrix
 
 
 def transpose(m) -> list:
@@ -128,6 +157,7 @@ def compare(m1: list, m2: list) -> bool:
                 return False
 
     return True
+
 
 def inverse(m) -> list:
     if not is_square(m):

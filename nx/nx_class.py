@@ -63,6 +63,10 @@ class NX:
         self.session = Nx.Session.GetSession()
         self.new_file = self.session.Parts.FileNew()
 
+    def open_file(self, propmt_string: str, title: str, filter: str) -> tuple:
+        file_name = Nx.Ui.CreateFilebox(propmt_string, title, filter)
+        return file_name
+
     def import_file(self, in_file=None, out_file=None, in_file_type='iges'):
         """
         Imports file iges format (or another type file) and saves it to prt format

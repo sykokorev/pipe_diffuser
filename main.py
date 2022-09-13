@@ -1,7 +1,7 @@
-from audioop import cross
 import sys
 import os
 import logging
+
 
 import utils.p1112_parser as p1112
 from mathlib.math import *
@@ -11,6 +11,8 @@ from diffuser.pipe_diffuser import PipeDiffuser as diffuser
 
 
 if __name__ == "__main__":
+
+    file_1112 = nx.open_file(propmt_string='Open 1112 data file', title='Open 1112 File', filter='')
 
     logger = logging.getLogger(__name__)
     logger_file = 'diffuser.log'

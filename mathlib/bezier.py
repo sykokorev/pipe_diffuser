@@ -6,11 +6,11 @@ class BaseBezier:
 
     def __init__(self, points: list, *args, **kwargs):
         self.__points = points
-        self.__degree: int = len(self.__points) - 1
-        self.__space_dimention: int = len(self.__points[0])
+        self.__degree = len(self.__points) - 1
+        self.__space_dimention = len(self.__points[0])
         self.__npoints = kwargs.get('npoints', 50)
-        self.__first_point: list = self.__points[0]
-        self.__last_point: list = self.__points[-1]
+        self.__first_point = self.__points[0]
+        self.__last_point = self.__points[-1]
 
     @property
     def points(self):
@@ -157,8 +157,8 @@ class BaseBezier:
         return t2, self.get_point(t=t2)
 
     def __repr__(self):
-        return f'BaseBezier\ndegree {self.degree};\n' \
-               f'Points: {self.points}\n'
+        return 'BaseBezier\ndegree {degree};\n' \
+               'Points: {points}\n'.format(degree=self.degree, points=self.points)
 
 
 class BezierThroughPoints(BaseBezier):
@@ -166,18 +166,18 @@ class BezierThroughPoints(BaseBezier):
     def __init__(self, points: list, *args, **kwargs):
         super().__init__(points=points, *args, **kwargs)
         self.curves = []
-        self.__degree: int = 3
-        self.__dim: int = 2 + (len(self.points) - 2) * 2
-        self.__A: list = [[0] * self.__dim for d in range(self.__dim)]
-        self.__B: list = [[0] * self.dimention for d in range(self.__dim)]
-        self.__number_of_curves: int = len(self.points) - 1
+        self.__degree = 3
+        self.__dim = 2 + (len(self.points) - 2) * 2
+        self.__A = [[0] * self.__dim for d in range(self.__dim)]
+        self.__B = [[0] * self.dimention for d in range(self.__dim)]
+        self.__number_of_curves = len(self.points) - 1
         for points in self.__control_points():
             self.curves.append(BaseBezier(points=points))
 
-        self.__first_point: list = self.curves[0].points[0]
-        self.__last_point: list = self.curves[-1].points[-1]
+        self.__first_point = self.curves[0].points[0]
+        self.__last_point = self.curves[-1].points[-1]
         self.__curve_lengths = [curve.get_length() for curve in self.curves]
-        self.__length: float = sum(self.__curve_lengths)
+        self.__length = sum(self.__curve_lengths)
 
     @property
     def first_point(self):
@@ -316,6 +316,7 @@ class BezierThroughPoints(BaseBezier):
         control_points = []
 
         for i in range(self.num_curves):
-            control_points.append([[*self.points[i]], *cp[2 * i:2 * i + 2], [*self.points[i + 1]]])
+            control_points.append([[point for point in self.points[i]],
+            [point for point in cp[2 * i:2 * i + 2]], [point for point in self.points[i + 1]]])
 
         return control_points

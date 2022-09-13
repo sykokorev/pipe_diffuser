@@ -1,4 +1,3 @@
-import numpy as np
 import itertools
 from utils.utils import Utils
 
@@ -31,7 +30,7 @@ def input_parameters_p1112(in_file: str) -> dict:
     return out_dict, True
 
 
-def distribution(in_file: str, string: str) -> np.array:
+def distribution(in_file: str, string: str) -> list:
 
     foperate = Utils(in_file=in_file)
 
@@ -43,7 +42,7 @@ def distribution(in_file: str, string: str) -> np.array:
     
     points = foperate.get_lines(start=index + 2, stop=index + num_of_points + 1, split=True, sep=' ')
     try:
-        points = np.array(points, dtype=float)
+        points = [float(point) for point in  points]
     except ValueError as ex:
         return ex, False
 
