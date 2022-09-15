@@ -1,5 +1,5 @@
+from mailbox import linesep
 import math
-import numpy as np
 import matplotlib.pyplot as plt
 from mathlib.bezier import BezierThroughPoints
 from mathlib.matrix import prt_mat, prt_vec
@@ -203,6 +203,29 @@ if __name__ == "__main__":
     trajectory = [p1.Dual.vector, p2.Dual.vector]
     displacement_axis = [[0]*3, vec.normed(t_axis)]
 
+    # Test one link robot
+    rot_axis = vec.normed(vector=[0.0, 0.0, 1.0])
+    tr_axis = [1.0, 0.0, 0.0]
+    d = 3.0
+    teta = math.radians(180)
+    rot_dq = DualQuaternion(
+        D0=Quaternion(scalar=math.cos(teta), vector=vec.scalar_vector(scalar=math.sin(teta), vector=rot_axis)),
+        D1=Quaternion()
+    )
+    tr_dq = DualQuaternion(
+        D0=Quaternion(scalar=1.0, vector=[0.0, 0.0, 0.0]),
+        D1=Quaternion(scalar=0.0, vector=vec.scalar_vector(scalar=d, vector=tr_axis))
+    )
+
+    # Rotation
+    p2 = rot_dq.mult(tr_dq)
+    print("####### Test one Link Robot #######")
+    print('DQ rotation')
+    print(rot_dq)
+    print('DQ Translation')
+    print(tr_dq)
+    print('Finish DQ')
+    print(p2)
 
     # Trajectory Plotitng
 

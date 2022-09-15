@@ -316,7 +316,11 @@ class BezierThroughPoints(BaseBezier):
         control_points = []
 
         for i in range(self.num_curves):
-            control_points.append([[point for point in self.points[i]],
-            [point for point in cp[2 * i:2 * i + 2]], [point for point in self.points[i + 1]]])
+            tmp = []
+            tmp.append(self.points[i])
+            for p in cp[2 * i:2 * i + 2]:
+                tmp.append(p)
+            tmp.append(self.points[i + 1])
+            control_points.append(tmp)
 
         return control_points

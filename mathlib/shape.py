@@ -40,11 +40,12 @@ class Line:
                 self.__init__(points=pts)
 
     def get_point(self, abscissa: float):
-        return [
-            abscissa,
-            *[self.points[0][j] + self.slope[j] * (abscissa - self.points[0][0]) 
-            for j in range(1, self.spacial)]
-        ]
+        out = []
+        out.append(abscissa)
+        for j in range(1, self.spacial):
+            out.append(self.points[0][j] + self.slope[j] * (abscissa - self.points[0][0]))
+
+        return out
 
     def get_length(self):
         ln = [(self.points[0][j] - self.points[1][j]) ** 2 for j in range(self.spacial)]
@@ -58,20 +59,9 @@ class Line:
         return point
 
     def interpolate(self, abscissa: list):
-
-        if self.points[0][0] != self.points[1][0]:
-            slope = [ 
-                    (self.points[1][j] - self.points[0][j]) / (self.points[1][0] - self.points[0][0])
-                    for j in range(self.spacial)
-                ]
-        else:
-            slope = [0 for i in range(self.spacial)]
         out = []
-
         for x in abscissa:
-            out.append(
-                [x, *[self.points[0][j] + (x - self.points[0][0]) * slope[j] for j in range(1, self.spacial)]]
-            )
+            out.append(self.get_point(abscissa=x))
 
         return out
 

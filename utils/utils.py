@@ -1,7 +1,38 @@
+from cProfile import run
+from logging import root
+import platform
 import os
 import re
+import glob
 
-file_name = os.path.join(r'E:\Kokorev\pipe_diffuser\code\samples\diffuser7_test402.p1112')
+
+def check_points(points: list, attrs: tuple=(int, float)) -> bool:
+    for point in points:
+        if hasattr(point, '__iter__'):
+            if all([isinstance(p, attrs) for p in point]):
+                return True
+            else:
+                return False
+        else:
+            if all([isinstance(point, attrs) for point in points]):
+                return True
+            else:
+                return False
+        
+
+def find_nx_journal_run():
+    os_type = platform.system()
+    sep = os.sep
+    if os_type == 'Windows':
+        root_dir = "C:" + sep + 'Siemens' + sep
+        if not os.path.exists(root_dir):
+            return False
+        else:
+            run_journal = 'NX*' + sep + 'NXBIN' + sep + 'run_journal.exe'
+            nx_journal = glob.glob(pathname=run_journal, root_dir=root_dir, recursive=True)
+            if not nx_journal:
+                return False
+            return os.path.normpath(root_dir + nx_journal[0])
 
 
 class Utils:

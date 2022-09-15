@@ -39,12 +39,13 @@ def distribution(in_file: str, string: str) -> list:
         num_of_points = int(foperate.get_line(index=index+1))
     except ValueError as ex:
         return ex, False
-    
+
     points = foperate.get_lines(start=index + 2, stop=index + num_of_points + 1, split=True, sep=' ')
+    out = []
     try:
-        points = [float(point) for point in  points]
+        for point in points:
+            out.append([float(pi) for pi in point])
     except ValueError as ex:
         return ex, False
-
-    return (points, True)
+    return (out, True)
     

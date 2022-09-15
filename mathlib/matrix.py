@@ -3,7 +3,7 @@
 def prt_vec (v: list, desc: str='#'*50, dec: int=3) -> None:
     if v:
         print(desc)
-        print([round(vi, dec) for vi in v])
+        print(*[round(vi, dec) for vi in v])
         print(desc)
     else:
         print('Not a vector')
@@ -123,7 +123,14 @@ def swap_row(m: list, i: int, j: int) -> list:
 
 
 def join(m1, m2) -> list:
-    return [[*row1, *row2] for row1, row2 in zip(m1, m2)]
+    out = []
+    for row1, row2 in zip(m1, m2):
+        tmp = row1
+        for val in row2:
+            tmp.append(val)
+        out.append(tmp)
+
+    return out
 
 
 def find_row_with_max_element(m, col_num: int=0, starting_row: int=0):

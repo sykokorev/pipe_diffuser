@@ -1,6 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
-
 import os
+
 import NXOpen as Nx
 import NXOpen.Features as Ftr
 
@@ -51,6 +51,9 @@ class NX:
         Creates solid or sheet body with swept method with the set parameters
     """
 
+    session = None
+    ui = None
+
     def __init__(self):
         """
         Constructs necessary attributes for handling NX Objects
@@ -62,10 +65,6 @@ class NX:
 
         self.session = Nx.Session.GetSession()
         self.new_file = self.session.Parts.FileNew()
-
-    def open_file(self, propmt_string: str, title: str, filter: str) -> tuple:
-        file_name = Nx.Ui.CreateFilebox(propmt_string, title, filter)
-        return file_name
 
     def import_file(self, in_file=None, out_file=None, in_file_type='iges'):
         """
@@ -89,13 +88,13 @@ class NX:
                 try:
                     iges_importer.Commit()
                     iges_importer.Destroy()
-                    msg = f"Iges file {os.path.split(out_file)[1]} has " \
-                          f"been successfully imported."
-                    msg += f"\nOutput file {out_file}"
+                    msg = "Iges file {} has " \
+                          "been successfully imported.".format(os.path.split(out_file)[1])
+                    msg += "\nOutput file {}".format(out_file)
                     return msg
                 except Nx.NXException as ex:
-                    msg = f"Iges file {os.path.split(out_file)[1]} has not been imported."
-                    msg += f"An error occurred: {str(ex)}."
+                    msg = "Iges file {} has not been imported.".format(os.path.split(out_file)[1])
+                    msg += "An error occurred: {}.".format(str(ex))
                     return msg
 
     def create_prt_file(self, igs_file: str, prt_dir: str):
@@ -115,19 +114,19 @@ class NX:
             base_part, part_load_status = self.session.Parts.OpenBase(igs_file)
             part_load_status.Dispose()
         except Nx.NXException as ex:
-            msg = f"Trying to open file '{igs_file}'. " + str(ex)
+            msg = "Trying to open file '{}'. ".format(igs_file) + str(ex)
             return False, msg
 
         if part_load_status:
             try:
                 part_save_status = base_part.SaveAs(prt_file)
                 part_save_status.Dispose()
-                msg = f"File '{prt_file}' has been successfully created."
+                msg = "File '{}' has been successfully created.".format(prt_file)
                 close_modified = Nx.BasePart.CloseModified.CloseModified
                 self.session.Parts.CloseAll(close_modified, None)
                 return True, msg
             except Nx.NXException as ex:
-                msg = f"Trying to save '{os.path.split(prt_file)[1]}'. " + str(ex)
+                msg = "Trying to save '{}'. ".format(os.path.split(prt_file)[1]) + str(ex)
                 return False, msg
 
     def close_all(self, prt_file):
@@ -148,10 +147,10 @@ class NX:
             save_status.Dispose()
             self.session.Parts.CloseAll(Nx.BasePart.CloseModified.CloseModified, None)
             work_part = Nx.Part.Null
-            msg = f"File {prt_file} has been successfully saved and closed."
+            msg = "File {} has been successfully saved and closed.".format(prt_file)
             return True, msg
         except Nx.NXException as ex:
-            msg = f"Trying to save and close file '{prt_file}'. An error occurred {str(ex)}."
+            msg = "Trying to save and close file '{}'. An error occurred {str(ex)}.".format(prt_file)
             return False, msg
 
     def create_new_nx_file(self, **parameters):
@@ -176,32 +175,29 @@ class NX:
         file_name = parameters.get('file_name', None)
         template = parameters.get('template', 'model-plain-1-mm-template.prt')
         app_name = parameters.get('app_name', 'ModelTemplate')
-        tmp_presentation_name = parameters.get('tmp_presentation_name', 'Model')
 
         if file_name:
             self.new_file.NewFileName = file_name
             self.new_file.TemplateFileName = template
             self.new_file.ApplicationName = app_name
-            self.new_file.TemplatePresentationName = tmp_presentation_name
-
             self.new_file.UseBlankTemplate = False
             self.new_file.Units = Nx.Part.Units.Millimeters
             self.new_file.RelationType = ""
             self.new_file.TemplateType = Nx.FileNewTemplateType.Item
             self.new_file.ItemType = ""
             self.new_file.MasterFileName = ""
-
             self.new_file.SetCanCreateAltrep(False)
 
             try:
                 nx_obj_file = self.new_file.Commit()
                 file_name = os.path.split(file_name)[1]
-                msg = f"File '{file_name}' has been successfully created."
+                msg = "File '{}' has been successfully created.".format(file_name)
                 self.new_file.Destroy()
                 return True, msg
             except Nx.NXException as ex:
                 file_name = os.path.split(file_name)[1]
-                msg = f"File '{file_name}' has not been created. An error occurred: {str(ex)}"
+                msg = "File '{fn}' has not been created. An error occurred: " \
+                    "{expt}".format(fn=file_name, expt=str(ex))
                 return False, msg
 
     def add_part_to_assembly(self, part, assembly_file=None):
@@ -252,10 +248,10 @@ class NX:
                 obj_tag = nx_obj_builder.Tag
                 component_builder.Destroy()
                 component_pos.ClearNetwork()
-                msg = f"Part {part} has been successfully added."
+                msg = "Part {} has been successfully added.".format(part)
                 return obj_tag, msg
             except Nx.NXException as ex:
-                msg = f"Error committing component {part}. " + str(ex)
+                msg = "Error committing component {}. ".format(part) + str(ex)
                 return False, msg
 
     def create_spline_with_points(self, **parameters):
@@ -289,6 +285,8 @@ class NX:
 
         if curve_points:
             work_part = self.session.Parts.Work
+            print(work_part)
+            print(self.session)
             studio_spline_builder = work_part.Features.CreateStudioSplineBuilderEx(Nx.NXObject.Null)
 
             if matched_knot:
@@ -315,7 +313,7 @@ class NX:
                     y *= coeff
                     z *= coeff
                 except ValueError:
-                    msg = f"Coordinates value x: {x}, y: {y}, z: {z}. "
+                    msg = "Coordinates value x: {x}, y: {y}, z: {z}. ".format(x=x, y=y, z=z)
                     msg += "Data type mismatches."
                     return False, msg
 
@@ -334,10 +332,10 @@ class NX:
                     studio_spline.SetName('spline')
 
                 studio_spline_builder.Destroy()
-                msg = f"Studio spline has been successfully created."
+                msg = "Studio spline has been successfully created."
                 return obj_tag, msg
             except Nx.NXException as ex:
-                msg = f"Studio spline has not been created. An error occurred {str(ex)}."
+                msg = "Studio spline has not been created. An error occurred {}.".format(str(ex))
                 return False, msg
 
     def through_curves(self, **parameters):
@@ -436,7 +434,7 @@ class NX:
                 msg = 'Through curves object has been created successfully'
                 return obj_tag, msg
             except Nx.NXException as ex:
-                msg = 'Through curves object has not been created. An error occurred: {ex}'
+                msg = 'Through curves object has not been created. An error occurred: {}'.format(str(ex))
                 return False, msg
 
     def swept(self, **parameters):
@@ -529,7 +527,7 @@ class NX:
             for i, obj in enumerate(section_curves.values()):
                 studio_spline = Nx.TaggedObjectManager.GetTaggedObject(obj)
                 spline = studio_spline.GetEntities()[0]
-                help_point = Nx.Point3d(*section_help_points[i])
+                help_point = Nx.Point3d([point for point in section_help_points[i]])
                 feature = [Ftr.Feature.Null] * 1
                 feature[0] = studio_spline
                 features[i] = spline
@@ -583,5 +581,5 @@ class NX:
                 msg = 'Swept object has been created successfully.'
                 return obj_tag, msg
             except Nx.NXException as ex:
-                msg = f'Swept object has not been created. An error occured {str(ex)}'
+                msg = 'Swept object has not been created. An error occured {}'.format(str(ex))
                 return False, msg
