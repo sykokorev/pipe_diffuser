@@ -75,4 +75,4 @@ def scalar_addition(scalar: float, vector: list):
 
 
 def substraction(v1: list, v2: list) -> list:
-    return [v1i * (-1) * v2i for v1i, v2i in zip(v1, v2)]
+    return [v1i + (-1) * v2i for v1i, v2i in zip(v1, v2)]

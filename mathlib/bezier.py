@@ -1,6 +1,7 @@
 from mathlib.math import *
 from mathlib.matrix import *
 from mathlib.gaussian_quadrature import GQ as gq
+from mathlib.vector import normed, scalar_vector
 
 class BaseBezier:
 
@@ -229,6 +230,10 @@ class BezierThroughPoints(BaseBezier):
     def num_curves(self):
         return self.__number_of_curves
 
+    @property
+    def lengths(self):
+        return self.__curve_lengths
+
     def get_point(self, point: tuple=([0, 0.0])) -> float:
 
         idx = self.__get_curve_idx(point=point)
@@ -278,12 +283,23 @@ class BezierThroughPoints(BaseBezier):
 
         return coordinates
 
-    def derivatives(self, norm_length: float=0.0) -> list:
+    def derivative(self, norm_length: float=0.0) -> list:
         length = norm_length * self.length
         idx, ln = self.__get_curve_length_idx(length=length)
         point = self.curves[idx].get_length_point(length=ln)
         t = self.curves[idx].get_t(point=(0, point[1][0]))
-        return self.curves[idx].derivative(t=t)
+        vector = self.curves[idx].derivative(t=t)
+        norm_vector = normed(vector=vector)
+        return norm_vector
+
+    def derivatives(self, norm_length: list=[0.0, 1.0]):
+        derivatives = []
+        for nl in norm_length:
+            derivatives.append(self.derivative(norm_length=nl))
+        return derivatives
+
+    def tangent_line(self, norm_length: list=[0.0, 1.0]):
+        pass
 
     def __get_curve_length_idx(self, length: float):
         lengths = [c.get_length() for c in self.curves]

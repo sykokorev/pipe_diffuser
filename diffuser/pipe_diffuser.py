@@ -1,5 +1,9 @@
 import math
 
+from mathlib.dual_quaternion import DualQuaternion as DQ
+from mathlib.quaternion import Quaternion as Q
+from mathlib.vector import scalar_vector
+
 from utils.utils import check_points
 from mathlib.bezier import BezierThroughPoints as bezier
 from mathlib.gaussian_quadrature import GQ as gq
@@ -75,6 +79,10 @@ class PipeDiffuser:
     @property
     def cross_sections(self):
         return self.__cross_sections
+
+    @property
+    def bezier_mean_line(self):
+        return self.__ml_bezier
 
     @lengths.setter
     def lengths(self, points: list):
@@ -159,32 +167,37 @@ class PipeDiffuser:
         else:
             return 0.0
 
-    def compute_cross_section(self, wh: float=1.0, area: float=1.0, num_points: int=40):
+    def compute_cross_section(self, wh: float=1.0, area: float=1.0):
 
-        h = 2 * (area / (wh - 1 + math.pi)) ** 0.5
+        h = (area / (wh - 1 + math.pi / 4)) ** 0.5
         w = wh * h
-        c1 = Circle(center=[-w/2+h/2, 0.0], radius=h/2)
-        c2 = Circle(center=[w/2-h/2, 0.0], radius=h/2)
-        points = []
+        c1 = Circle(center=[-w/2+h/2, 0.0, 0.0], radius=h/2)
+        c2 = Circle(center=[w/2-h/2, 0.0, 0.0], radius=h/2)
+        cross_section = []
+
         if wh == 1:
-            for point in c1.get_points(a1=3*math.pi/2, a2=math.pi/2, num_points=int(num_points/2)):
-                points.append(point)
-            for point in c2.get_points(a1=math.pi/2, a2=-math.pi/2, num_points=int(num_points/2)):
-                points.append(point)
+            cross_section.append([
+                point for point in c1.get_points(a1=3*math.pi/2, a2=math.pi/2, num_points=3)
+            ])
+            cross_section.append([])
+            cross_section.append([
+                point for point in c2.get_points(a1=math.pi/2, a2=-math.pi/2, num_points=3)
+            ])
+            cross_section.append([])
         else:
-            line1 = Line(points=[[-w/2+h/2, h/2], [w/2-h/2, h/2]])
-            line2 = Line(points=[[w/2-h/2, -h/2], [-w/2+h/2, -h/2]])
-            for point in c1.get_points(a1=3*math.pi/2, a2=math.pi/2, num_points=int(num_points/4)):
-                points.append(point)
-            for point in line1.get_points(num_points=int(num_points/4)):
-                points.append(point)
-            for point in c2.get_points(a1=math.pi/2, a2=-math.pi/2, num_points=int(num_points/4)):
-                points.append(point)
-            for point in line2.get_points(num_points=int(num_points/4)):
-                points.append(point)
-
-        return points
-
+            line1 = Line(points=[[-w/2+h/2, h/2, 0.0], [w/2-h/2, h/2, 0.0]])
+            line2 = Line(points=[[w/2-h/2, -h/2, 0.0], [-w/2+h/2, -h/2, 0.0]])
+            cross_section.append([
+                point for point in c1.get_points(a1=3*math.pi/2, a2=math.pi/2, num_points=3)
+            ])
+            cross_section.append([line1.first_point, line1.last_point])
+            cross_section.append([
+                point for point in c2.get_points(a1=math.pi/2, a2=-math.pi/2, num_points=3)
+            ])
+            cross_section.append([line2.first_point, line2.last_point])
+        
+        return cross_section
+            
     def compute_cross_sections(self, wh: list=[], area: list=[], lengths: list=[]):
 
         if not wh or hasattr(wh, '__iter__') or check_points(points=wh):
@@ -197,12 +210,62 @@ class PipeDiffuser:
             lengths = self.lengths
 
         self.__cross_sections = []
+        
+        derivatives = self.__ml_bezier.derivatives(norm_length=[l/lengths[-1] for l in lengths])
 
-        for wh, area, lenght in zip(self.wh, self.area, self.lengths):
+        for wh, area, twist, d, lenght in zip(
+                [whi[1] for whi in self.wh], 
+                [areai[1] for areai in self.area],
+                [twisti[1] for twisti in self.twist],
+                derivatives,
+                self.lengths
+            ):
             point = self.__ml_bezier.norm_length_point(norm_length=(lenght/self.lengths[-1]))[1]
-            self.__cross_sections.append([
-                point,
-                self.compute_cross_section(wh=wh[1], area=area[1], num_points=200)
-                ])
+            Tr = DQ(
+                D0=Q(scalar=1.0, vector=[0.0, 0.0, 0.0]),
+                D1=Q(scalar=0.0, vector=scalar_vector(scalar=0.5, vector=point))
+            )
+            tetaY = math.radians(90)
+            dzdx = math.atan(d[2] / d[0])
+            dydx = math.atan(d[1] / d[0])
+            RotY = DQ(
+                D0=Q(scalar=math.cos(tetaY/2), 
+                vector=scalar_vector(scalar=math.sin(tetaY/2), vector=[0.0, 1.0, 0.0])),
+                D1=Q()
+            )
+            RotYdZdX = DQ(
+                D0=Q(scalar=math.cos(dzdx/2), 
+                vector=scalar_vector(scalar=math.sin(dzdx/2), vector=[0.0, 1.0, 0.0])),
+                D1=Q()
+            )
+            RotZdYdX = DQ(
+                D0=Q(scalar=math.cos(dydx/2), 
+                vector=scalar_vector(scalar=math.sin(dydx/2), vector=[0.0, 0.0, -1.0])),
+                D1=Q()
+            )
+            RotX = DQ(
+                D0=Q(scalar=math.cos(twist/2),
+                vector=scalar_vector(scalar=math.sin(twist/2), vector=[1.0, 0.0, 0.0])),
+                D1=Q()
+            )
+            ResDQ = RotY.mult(RotZdYdX).mult(RotYdZdX).mult(RotX).mult(Tr)
+            ResDQ_conj = ResDQ.conjugate()
+            points = []
+            for shape in self.compute_cross_section(wh=wh, area=area):
+                if shape:
+                    points.append([
+                        ResDQ_conj.mult
+                        (DQ(D0=Q(scalar=1.0, vector=[0.0, 0.0, 0.0]), D1=Q(scalar=0.0, vector=p))
+                        ).mult(ResDQ).Dual.vector
+                        for p in shape
+                        ])
+                else:
+                    points.append([])
+            self.__cross_sections.append([point, points])
 
         return self.__cross_sections
+
+    def get_tangents(self, norm_length: list=[0.0, 1.0]):
+
+        derivatives =  self.__ml_bezier.derivatives(norm_length=norm_length)
+        return derivatives

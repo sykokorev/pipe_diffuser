@@ -285,8 +285,6 @@ class NX:
 
         if curve_points:
             work_part = self.session.Parts.Work
-            print(work_part)
-            print(self.session)
             studio_spline_builder = work_part.Features.CreateStudioSplineBuilderEx(Nx.NXObject.Null)
 
             if matched_knot:

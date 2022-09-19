@@ -72,6 +72,11 @@ class DualQuaternion:
             D0=self.Real.addition(DQ.Real), D1=self.Dual.addition(DQ.Dual)
         )
     
+    def substraction(self, DQ: object) -> object:
+        return DualQuaternion(
+            D0=self.Real.substraction(DQ.Real), D1=self.Dual.substraction(DQ.Dual)
+        )
+
     def scalar_product(self, scalar: float) -> object:
         return DualQuaternion(D0=self.__D0.scalar_product(scalar=scalar),
                               D1=self.__D1.scalar_product(scalar=scalar))

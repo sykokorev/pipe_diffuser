@@ -1,20 +1,29 @@
-from statistics import mean
+import math
 import sys
 import os
 import logging
 import subprocess
 import json
+import matplotlib.pyplot as plt
+
 
 import utils.p1112_parser as p1112
+
 from mathlib.math import *
 from mathlib.bezier import *
 from mathlib.line_interpolation import LineInterpolation
+from mathlib.dual_quaternion import DualQuaternion as DQ
+from mathlib.quaternion import Quaternion
+from chart.chart import PlotData
 from diffuser.pipe_diffuser import PipeDiffuser as diffuser
+
 from utils.open_file import *
 from utils.utils import find_nx_journal_run
 
 
 if __name__ == "__main__":
+
+    units = 25.4
 
     indata_file = select_file(
         filetypes=(('p1112 Data Files', '*.p1112'), ('All Files', '*.*')),
@@ -122,6 +131,24 @@ if __name__ == "__main__":
     pipe_diffuser.twist = twist_points
 
     cross_sections = pipe_diffuser.compute_cross_sections()
+    derivatives = pipe_diffuser.bezier_mean_line.derivatives(norm_length=norm_length)
+
+    for i, (section, d, twisti) in enumerate(zip(cross_sections, derivatives, twist_points), 1):
+        print(f'Section {i}')
+        print('Mean line point', end='\t')
+        print(*[s * units for s in section[0]])
+        print('Derivatives', end='\t')
+        print(*d)
+        print(f'Twist\t{math.degrees(twisti[1])}')
+        for shape in section[1]:
+            if shape:
+                for point in shape:
+                    print(*[p * units for p in point])
+            else:
+                print('None')
+            print()
+
+    print(pipe_diffuser.compute_cross_section(wh=wh_points[50][1], area=area_points[50][1]))
 
     json_outdata = {
         "twist": twist_points,
@@ -138,5 +165,8 @@ if __name__ == "__main__":
     nx_journal_run = find_nx_journal_run()
 
     if nx_journal_run:
-        command = [nx_journal_run, "nx_builder.py", '-args', os.path.normpath(os.path.abspath(outdata_file))]
+        command = [
+            nx_journal_run, "nx_builder.py", 
+            '-args', os.path.normpath(os.path.abspath(outdata_file))
+        ]
         code = subprocess.run(command)

@@ -1,6 +1,7 @@
 import math
 
 from mathlib.math import linspace
+from utils.utils import check_points
 
 
 class Line:
@@ -117,12 +118,13 @@ class Circle(Shape):
 
     def get_point(self, angle: float) -> list:
         return [self.center_point[0] + self.__radius * math.cos(angle),
-                self.center_point[1] + self.__radius * math.sin(angle)
+                self.center_point[1] + self.__radius * math.sin(angle),
+                0.0
             ]
 
     def get_points(self, a1: float, a2: float, num_points: int) -> list:
         return [[self.center_point[0] + self.__radius * math.cos(a),
-                 self.center_point[1] + self.__radius * math.sin(a)]
+                 self.center_point[1] + self.__radius * math.sin(a), 0.0]
                  for a in linspace(a1, a2, num_points)]
 
     def get_perimeter(self) -> float:
@@ -142,6 +144,31 @@ class Circle(Shape):
     
     def get_chord_hight(self, angle: float) -> float:
         return self.__radius - (self.__radius ** 2 - (self.get_chord_length(angle=angle) ** 2) / 4) ** 0.5
+
+
+class Sector(Circle):
+    def __init__(self, center: list, radius: float, angle: float, absciss: float):
+        super().__init__(self, center=center, radius=radius)
+        self.__a = angle
+        self.__x = absciss
+
+    @property
+    def absciss(self):
+        return self.__x
+
+    @property
+    def angle(self):
+        return self.__a
+
+    @absciss.setter
+    def point1(self, point: list):
+        if hasattr(point, '__iter__') and check_points(points=point, attrs=(float, int)):
+            self.__p1 = point
+
+    @angle.setter
+    def angle(self, angle):
+        if isinstance(angle, (float, int)):
+            self.__a = angle
 
 
 class Rectangle(Shape):
