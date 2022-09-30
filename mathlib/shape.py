@@ -86,6 +86,15 @@ class Line:
             slope = [0 for i in range(self.spacial)]
         return slope
 
+    def __repr__(self):
+        points_str = ''
+        for point in self.points:
+            for p in point:
+                points_str += f'{round(p, 4)}\t'
+            points_str += '\n'
+        return f'{self.__class__.__name__}Points:\n{points_str}\n' \
+            f'Slope:\t{self.slope}\nFirst point:\t{[round(p, 4) for p in self.first_point]}\n' \
+                f'Last point:\t{[round(p, 4) for p in self.last_point]}\n'
 
 class Shape:
     def __init__(self, center: list):

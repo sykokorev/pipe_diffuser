@@ -1,10 +1,8 @@
-import math
 import sys
 import os
 import logging
 import subprocess
 import json
-import matplotlib.pyplot as plt
 
 
 import utils.p1112_parser as p1112
@@ -12,9 +10,6 @@ import utils.p1112_parser as p1112
 from mathlib.math import *
 from mathlib.bezier import *
 from mathlib.line_interpolation import LineInterpolation
-from mathlib.dual_quaternion import DualQuaternion as DQ
-from mathlib.quaternion import Quaternion
-from chart.chart import PlotData
 from diffuser.pipe_diffuser import PipeDiffuser as diffuser
 
 from utils.open_file import *
@@ -75,17 +70,17 @@ if __name__ == "__main__":
     # Data for cross section
     wh, exeption = p1112.distribution(in_file=indata_file, string=r'w\W+h\s+\w+')
     if not exception:
-        msg = 'WH distribution has not been found. Input data will applied.'
+        msg = 'WH distribution has not been found. Input data will be applied.'
         logger.info(msg)
 
     area, exception = p1112.distribution(in_file=indata_file, string=r'area\s+\w+')
     if not exception:
-        msg = 'Area distribution has not been found. Input data will applied.'
+        msg = 'Area distribution has not been found. Input data will be applied.'
         logger.info(msg)
 
     twist, exception = p1112.distribution(in_file=indata_file, string=r'twist\s+\w+')
     if not exception:
-        msg = 'Twist distribution has not been found. Input data will applied.'
+        msg = 'Twist distribution has not been found. Input data will be applied.'
         logger.info(msg)
 
     # x linear distribution
@@ -97,7 +92,7 @@ if __name__ == "__main__":
     area_line = LineInterpolation(points=area)
     twist_line = LineInterpolation(points=twist)
 
-    norm_length = arange(start=0.0, stop=1.01, step=0.01)
+    norm_length = arange(start=0.0, stop=1.02, step=0.02)
     xr_points = [xr_bezier.norm_length_point(ni)[1] for ni in norm_length]
     xr_points = [[abs(round(xri[0], 4)), abs(round(xri[1], 4))] for xri in xr_points]
 
@@ -124,7 +119,6 @@ if __name__ == "__main__":
     wh_points = wh_line.interpolate(points=length)
     area_points = area_line.interpolate(points=length)
     twist_points = twist_line.interpolate(points=length)
-
     pipe_diffuser.lengths = length
     pipe_diffuser.wh = wh_points
     pipe_diffuser.area = area_points
@@ -132,23 +126,6 @@ if __name__ == "__main__":
 
     cross_sections = pipe_diffuser.compute_cross_sections()
     derivatives = pipe_diffuser.bezier_mean_line.derivatives(norm_length=norm_length)
-
-    for i, (section, d, twisti) in enumerate(zip(cross_sections, derivatives, twist_points), 1):
-        print(f'Section {i}')
-        print('Mean line point', end='\t')
-        print(*[s * units for s in section[0]])
-        print('Derivatives', end='\t')
-        print(*d)
-        print(f'Twist\t{math.degrees(twisti[1])}')
-        for shape in section[1]:
-            if shape:
-                for point in shape:
-                    print(*[p * units for p in point])
-            else:
-                print('None')
-            print()
-
-    print(pipe_diffuser.compute_cross_section(wh=wh_points[50][1], area=area_points[50][1]))
 
     json_outdata = {
         "twist": twist_points,

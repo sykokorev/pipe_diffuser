@@ -1,5 +1,3 @@
-from mimetypes import init
-import re
 from tkinter import filedialog as fd
 
 

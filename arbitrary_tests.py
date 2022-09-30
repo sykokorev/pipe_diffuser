@@ -1,9 +1,8 @@
 from audioop import add
 import math
-from urllib.response import addinfo
 import matplotlib.pyplot as plt
 from mathlib.math import linspace
-from mathlib.quaternion import Quaternion
+from mathlib.quaternion import Quaternion as Q
 
 
 import mathlib.vector as vc
@@ -27,61 +26,75 @@ if __name__ == "__main__":
     bezier = BaseBezier(points=points)
     coordinates = bezier.get_coordinates()
 
-    teta = math.radians(90)
-    del_teta = linspace(0, teta, 45)
     x = 2
-    derivatives = bezier.derivative(t=0.75)
-    point1 = bezier.get_point(t=0.75)
+    x2 = 3
+
+    derivatives = bezier.derivative(t=0.5)
+    point1 = bezier.get_point(t=0.5)
+
     point2 = [p + (d / derivatives[0]) * (x - point1[0]) for p, d in zip(point1, derivatives)]
+    point3 = [p + (d / derivatives[0]) * (x2 - point1[0]) for p, d in zip(point1, derivatives)]
 
-    P2 = DQ(
-        D0=Quaternion(scalar=1.0, vector=[0.0, 0.0, 0.0]),
-        D1=Quaternion(scalar=0.0, vector=point2)
+    alfa = math.atan(derivatives[1] / derivatives[0])
+    beta = math.atan(derivatives[2] / derivatives[0])
+    gamma = math.atan(derivatives[2] / (derivatives[1] ** 2 + derivatives[0] ** 2) ** 0.5)
+
+    base_xaxis = [1.0, 0.0, 0.0]
+    dq_base_xaxis = DQ(
+        D0=Q(scalar=1.0, vector=[0.0, 0.0, 0.0]),
+        D1=Q(scalar=0.0, vector=base_xaxis)
+    )
+    RotZ = DQ(
+        D0=Q(scalar=math.cos(alfa/2), vector=vc.scalar_vector(scalar=math.sin(alfa/2), vector=[0.0, 0.0, -1.0])),
+        D1=Q()
+    )
+    RotY = DQ(
+        D0=Q(scalar=math.cos(beta/2), vector=vc.scalar_vector(scalar=math.sin(beta/2), vector=[0.0, 1.0, 0.0])),
+        D1=Q()
+    )
+    RotYGamma = DQ(
+        D0=Q(scalar=math.cos(gamma/2), vector=vc.scalar_vector(scalar=math.sin(gamma/2), vector=[0.0, 1.0, 0.0])),
+        D1=Q()
+    )
+    Tr = DQ(
+        D0=Q(scalar=1.0, vector=[0.0, 0.0, 0.0]),
+        D1=Q(scalar=0.0, vector=vc.scalar_vector(scalar=0.5, vector=point1))
     )
 
-    P1 = DQ(
-        D0=Quaternion(scalar=1.0, vector=[0.0, 0.0, 0.0]),
-        D1=Quaternion(scalar=0.0, vector=point1)
+    ResDQ = RotYGamma.mult(RotZ).mult(Tr)
+    ResDQ_conj = ResDQ.conjugate()
+
+    dq_point_transform = ResDQ_conj.mult(dq_base_xaxis).mult(ResDQ)
+    point_transf = dq_point_transform.Dual.vector
+
+
+    teta = math.radians(45)
+    RotZteta = DQ(
+        D0=Q(scalar=math.cos(teta/2), 
+        vector=vc.scalar_vector(scalar=math.sin(teta/2), vector=[0.0, 0.0, -1.0])),
+        D1=Q()
+    )
+    RotXteta = DQ(
+        D0=Q(scalar=math.cos(teta/2), 
+        vector=vc.scalar_vector(scalar=math.sin(teta/2), vector=[0.0, 1.0, 0.0])),
+        D1=Q()
+    )
+    Trteta = DQ(
+        D0=Q(scalar=1.0, vector=[0.0, 0.0, 0.0]),
+        D1=Q(scalar=0.0, vector=vc.scalar_vector(scalar=0.5, vector=[1.0, 1.0, 1.0]))
     )
 
-    
-    dq_rot = DQ(
-        D0=Quaternion(scalar=math.cos(teta/2), 
-            vector=vc.scalar_vector(scalar=math.sin(teta/2), vector=vc.normed(vector=[1.0, 0.0, 0.0]))
-        ),
-        D1=Quaternion()
-    )
-
-
-
-    Pout = dq_rot.mult(P2).mult(dq_rot.conjugate())
-    pout = vc.normed(vector=vc.addition(v1=P1.Dual.vector, v2=Pout.Dual.vector))
-    p_per = [P1.Dual.vector, pout]
-
-    # trajectory = []
-    # for tetai in del_teta:
-    #     dq_rot.Real.scalar=math.cos(tetai/2)
-    #     dq_rot.Real.vector=
-
-
-    Pab = DQ(
-        D0=Quaternion(scalar=1.0, vector=[0.0, 0.0, 0.0]),
-        D1=Quaternion(scalar=0.0, vector=[3.0, 3.0, 3.0])
-    )
-
-    P1 = DQ(
-        D0=Quaternion(scalar=1.0, vector=[0.0, 0.0, 0.0]),
-        D1=Quaternion(scalar=0.0, vector=[3.0, 3.0, 3.0])
-    )
-
-    P2 = Pab.mult(P1)
-    print(P2)
+    DQResTeta = RotZteta.mult(RotXteta)#.mult(Trteta)
+    DQResTeta_conj = DQResTeta.conjugate()
+    point_teta = DQResTeta_conj.mult(dq_base_xaxis).mult(DQResTeta).Dual.vector
 
     ########################################################################################
 
-    # plot_data = pldata(data=coordinates)
-    # fig, ax = plot_data.plt_3Dgraph()
-    # plot_data.add_3Dgraph(ax=ax, data=[point1, point2])
-    # plot_data.add_3Dgraph(ax=ax, data=p_per, marker='o', color='g')
+    plot_data = pldata(data=coordinates)
+    fig, ax = plot_data.plt_3Dgraph()
+    plot_data.add_3Dgraph(ax=ax, data=[point2, point3])
+    # plot_data.add_3Dgraph(ax=ax, data=[[0.0, 0.0, 0.0], point_teta], marker='o', color='r')
+    plot_data.add_3Dgraph(ax=ax, data=[[0.0, 0.0, 0.0], base_xaxis], marker='s', color='g')
+    plot_data.add_3Dgraph(ax=ax, data=[point1, point_transf], marker='o', color='g')
 
-    # plt.show()
+    plt.show()
