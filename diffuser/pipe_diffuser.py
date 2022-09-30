@@ -1,4 +1,5 @@
 import math
+from re import A
 
 from mathlib.dual_quaternion import DualQuaternion as DQ
 from mathlib.quaternion import Quaternion as Q
@@ -177,13 +178,25 @@ class PipeDiffuser:
 
         if wh == 1:
             cross_section.append([
-                point for point in c1.get_points(a1=3*math.pi/2, a2=math.pi/2, num_points=3)
+                point for point in c1.get_points(
+                    a1=3*math.pi/2 - math.radians(5), a2=math.pi/2 + math.radians(5),
+                    num_points=3)
             ])
-            cross_section.append([])
             cross_section.append([
-                point for point in c2.get_points(a1=math.pi/2, a2=-math.pi/2, num_points=3)
+                point for point in c1.get_points(
+                    a1=math.pi/2 + math.radians(5), a2=math.pi/2 - math.radians(5),
+                    num_points=2)
             ])
-            cross_section.append([])
+            cross_section.append([
+                point for point in c2.get_points(
+                    a1=math.pi/2 - math.radians(5), a2=-math.pi/2 + math.radians(5),
+                    num_points=3)
+            ])
+            cross_section.append([
+                point for point in c2.get_points(
+                    a1=-math.pi/2 + math.radians(5), a2=3*math.pi/2 - math.radians(5),
+                    num_points=2)
+            ])
         else:
             line1 = Line(points=[[-w/2+h/2, h/2, 0.0], [w/2-h/2, h/2, 0.0]])
             line2 = Line(points=[[w/2-h/2, -h/2, 0.0], [-w/2+h/2, -h/2, 0.0]])
@@ -210,57 +223,54 @@ class PipeDiffuser:
             lengths = self.lengths
 
         self.__cross_sections = []
-        
         derivatives = self.__ml_bezier.derivatives(norm_length=[l/lengths[-1] for l in lengths])
+        tetaY = math.radians(90)
+
+        Tr = DQ(D0=Q(scalar=1.0, vector=[0.0, 0.0, 0.0]), D1=Q())
+        RotX = DQ(D0=Q(), D1=Q())
+        RotY = DQ(D0=Q(), D1=Q())
+        RotZ = DQ(D0=Q(), D1=Q())
+        PointDQ = DQ(D0=Q(scalar=1.0, vector=[0.0, 0.0, 0.0]), D1=Q())
 
         for wh, area, twist, d, lenght in zip(
-                [whi[1] for whi in self.wh], 
-                [areai[1] for areai in self.area],
-                [twisti[1] for twisti in self.twist],
+                [round(whi[1], 5) for whi in self.wh], 
+                [round(areai[1], 5) for areai in self.area],
+                [round(twisti[1], 5) for twisti in self.twist],
                 derivatives,
                 self.lengths
             ):
+            dx, dy, dz = round(d[0], 5), round(d[1], 5), round(d[2], 5)
+
+            if not dx:
+                dzdx, dydxdz = round(-math.pi / 4, 4), round(math.pi / 2, 4)
+            else:
+                dzdx = round(math.atan(dz / dx), 4)
+                dydxdz = round(math.atan(dy / (dx ** 2 + dz ** 2) ** 0.5), 4)
+
             point = self.__ml_bezier.norm_length_point(norm_length=(lenght/self.lengths[-1]))[1]
-            Tr = DQ(
-                D0=Q(scalar=1.0, vector=[0.0, 0.0, 0.0]),
-                D1=Q(scalar=0.0, vector=scalar_vector(scalar=0.5, vector=point))
-            )
-            tetaY = math.radians(90)
-            dzdx = math.atan(d[2] / d[0])
-            dydx = math.atan(d[1] / d[0])
-            RotY = DQ(
-                D0=Q(scalar=math.cos(tetaY/2), 
-                vector=scalar_vector(scalar=math.sin(tetaY/2), vector=[0.0, 1.0, 0.0])),
-                D1=Q()
-            )
-            RotYdZdX = DQ(
-                D0=Q(scalar=math.cos(dzdx/2), 
-                vector=scalar_vector(scalar=math.sin(dzdx/2), vector=[0.0, 1.0, 0.0])),
-                D1=Q()
-            )
-            RotZdYdX = DQ(
-                D0=Q(scalar=math.cos(dydx/2), 
-                vector=scalar_vector(scalar=math.sin(dydx/2), vector=[0.0, 0.0, -1.0])),
-                D1=Q()
-            )
-            RotX = DQ(
-                D0=Q(scalar=math.cos(twist/2),
-                vector=scalar_vector(scalar=math.sin(twist/2), vector=[1.0, 0.0, 0.0])),
-                D1=Q()
-            )
-            ResDQ = RotY.mult(RotZdYdX).mult(RotYdZdX).mult(RotX).mult(Tr)
+
+            Tr.Dual.vector = scalar_vector(scalar=0.5, vector=point)
+
+            RotY.Real.scalar = math.cos(tetaY / 2 + dzdx / 2)
+            RotY.Real.vector = scalar_vector(scalar=math.sin(tetaY / 2 + dzdx / 2), vector=[0.0, 1.0, 0.0])
+
+            RotZ.Real.scalar = math.cos(dydxdz / 2)
+            RotZ.Real.vector = scalar_vector(scalar=math.sin(dydxdz / 2), vector=[-1.0, 0.0, 0.0])
+
+            RotX.Real.scalar = math.cos(twist / 2)
+            RotX.Real.vector = scalar_vector(scalar=math.sin(twist / 2), vector=[0.0, 0.0, 1.0])
+
+            ResDQ = RotX.mult(RotZ).mult(RotY).mult(Tr)
             ResDQ_conj = ResDQ.conjugate()
             points = []
+
             for shape in self.compute_cross_section(wh=wh, area=area):
-                if shape:
-                    points.append([
-                        ResDQ_conj.mult
-                        (DQ(D0=Q(scalar=1.0, vector=[0.0, 0.0, 0.0]), D1=Q(scalar=0.0, vector=p))
-                        ).mult(ResDQ).Dual.vector
-                        for p in shape
-                        ])
-                else:
-                    points.append([])
+                point = []
+                for pt in shape:
+                    PointDQ.Dual.vector = pt
+                    point.append(ResDQ_conj.mult(PointDQ).mult(ResDQ).Dual.vector)
+                points.append(point)
+
             self.__cross_sections.append([point, points])
 
         return self.__cross_sections

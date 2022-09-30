@@ -5,26 +5,7 @@ import NXOpen as Nx
 import NXOpen.Features as Ftr
 
 from NXOpen import SectionCollection as SecCol
-
-
-def points_list_converted(points):
-    """
-    Converts list of curve points to match for
-    a creating StudioSpline curve
-    :param points: list
-        List of curves points that has been obtained
-        from dat file
-    :return: list of coordinates corresponding to
-        create_spline_from_points method of the NXAssembly class
-    """
-
-    coordinates = []
-    for point in points:
-        x = (-1) * point[1]
-        y = 0
-        z = point[0]
-        coordinates.append([x, y, z])
-    return coordinates
+from symbol import parameters
 
 
 class NX:
@@ -54,7 +35,7 @@ class NX:
     session = None
     ui = None
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """
         Constructs necessary attributes for handling NX Objects
 
@@ -65,6 +46,7 @@ class NX:
 
         self.session = Nx.Session.GetSession()
         self.new_file = self.session.Parts.FileNew()
+        self.units = kwargs.get('units', 1.0)
 
     def import_file(self, in_file=None, out_file=None, in_file_type='iges'):
         """
@@ -150,7 +132,7 @@ class NX:
             msg = "File {} has been successfully saved and closed.".format(prt_file)
             return True, msg
         except Nx.NXException as ex:
-            msg = "Trying to save and close file '{}'. An error occurred {str(ex)}.".format(prt_file)
+            msg = "Trying to save and close file '{}'. An error occurred {}.".format(prt_file, str(ex))
             return False, msg
 
     def create_new_nx_file(self, **parameters):
@@ -262,8 +244,6 @@ class NX:
         :param curve_points: list,
             A list of curve points in format
             [[x0, y0, z0], [x1, y1, z1], ... [xn, yn, zn]]
-        :param coeff: int,
-            Units convert
         :param spline_degree: int,
             Degree of spline curve
         :param matched_knot: Bool,
@@ -276,7 +256,6 @@ class NX:
         """
 
         curve_points = parameters.get('points', None)
-        coeff = parameters.get('coeff', 1)
         spline_degree = parameters.get('degree', 3)
         matched_knot = parameters.get('matched_knot', True)
         spline_type = parameters.get('spline_type', 'ThroughPoints')
@@ -307,9 +286,9 @@ class NX:
 
                 try:
                     x, y, z = float(x), float(y), float(z)
-                    x *= coeff
-                    y *= coeff
-                    z *= coeff
+                    x *= self.units
+                    y *= self.units
+                    z *= self.units
                 except ValueError:
                     msg = "Coordinates value x: {x}, y: {y}, z: {z}. ".format(x=x, y=y, z=z)
                     msg += "Data type mismatches."
@@ -353,11 +332,21 @@ class NX:
         :return: False or Tagged Object and logging message.
         """
 
-        section_curves = parameters.get('sections', {})
+        section_curves = parameters.get('sections', [])
         preserve_shape = parameters.get('preserve_shape', False)
-        help_points = parameters.get('help_points')
-        check_directions = parameters.get('check_directions', True)
+        help_points = parameters.get(
+            'help_points', [[-100/self.units, -100/self.units, -100/self.units]]*len(section_curves)
+        )
+        check_directions = parameters.get('check_directions', False)
         surface_type = parameters.get('surface_type', 'through_curves')
+        align_points = parameters.get('align_points', [0.0, 0.0, 0.0] * len(section_curves))
+        use_spine_curve = parameters.get('use_spine_curve', False)
+        spine_curve = parameters.get('spine_curve', None)
+        spine_help_point = parameters.get('spine_help_point', None)
+        # curves = parameters.get('curves')
+
+        set_start_and_direction = parameters.get('set_start_and_direction', False)
+        direction = parameters.get('direction')
 
         distance_tolerance = parameters.get('distance_tolerance', 0.01)
         chaining_tolerance = parameters.get('chaining_tolerance', 0.0095)
@@ -368,70 +357,130 @@ class NX:
             self.session.Preferences.Modeling.BodyType
             if surface_type == 'studio_surface':
                 builder = work_part.Features.CreateStudioSurfaceBuilder(Ftr.Feature.Null)
+                builder.BodyPreference = Ftr.ThroughCurvesBuilder.BodyPreferenceTypes.Sheet
                 builder.AlignmentMethod.AlignCurve.DistanceTolerance = distance_tolerance
                 builder.AlignmentMethod.AlignCurve.ChainingTolerance = chaining_tolerance
                 builder.AlignmentMethod.AlignCurve.AngleTolerance = angle_tolerance
             elif surface_type == 'through_curves':
                 builder = work_part.Features.CreateThroughCurvesBuilder(Ftr.Feature.Null)
+                builder.BodyPreference = Ftr.ThroughCurvesBuilder.BodyPreferenceTypes.Sheet
                 builder.PreserveShape = preserve_shape
+
+                if use_spine_curve:
+                    builder.Alignment.AlignType = Nx.GeometricUtilities.AlignmentMethodBuilder.Type.SpineCurve
+                    builder.LoftingSurfaceRebuildData.RebuildType = Nx.GeometricUtilities.Rebuild.RebuildTypes.Advanced
+
                 builder.PatchType = Nx.Features.ThroughCurvesBuilder.PatchTypes.Multiple
                 builder.Alignment.AlignCurve.DistanceTolerance = distance_tolerance
                 builder.Alignment.AlignCurve.ChainingTolerance = chaining_tolerance
                 builder.Alignment.AlignCurve.AngleTolerance = angle_tolerance
+                builder.SectionTemplateString.DistanceTolerance = distance_tolerance
+                builder.SectionTemplateString.ChainingTolerance = chaining_tolerance
+                builder.SectionTemplateString.AngleTolerance = angle_tolerance
             else:
-                builder = work_part.Features.CreateStudioSurfaceBuilder(Ftr.Feature.Null)
+                builder = work_part.Features.CreateThroughCurvesBuilder(Ftr.Feature.Null)
 
-            features = [Ftr.Feature.Null] * len(section_curves)
-            sections = [Nx.Section.Null] * len(section_curves)
+            # Set secionts
+            sections = []
+            for i, (obj, point) in enumerate(zip(section_curves, align_points)):
 
-            # Set features
-            for i, obj in enumerate(section_curves.values()):
-
-                studio_spline = Nx.TaggedObjectManager.GetTaggedObject(obj)
-                spline = studio_spline.GetEntities()[0]
+                # studio_spline = Nx.TaggedObjectManager.GetTaggedObject(obj)
+                # spline = studio_spline.GetEntities()[0]
+                help_point = [p * self.units for p in help_points[i]]
                 help_point = Nx.Point3d(*help_points[i])
 
-                feature = [Ftr.Feature.Null] * 1
-                feature[0] = studio_spline
-                features[i] = spline
-                rule = [work_part.ScRuleFactory.CreateRuleCurveFeature(feature)]
+                # feature = [Ftr.Feature.Null] * 1
+                # feature[0] = studio_spline
+                # features.append(spline)
+                curves_ = [Nx.IBaseCurve.Null] * 4
+                for i, c in enumerate(obj):
+                    curves_[i] =  Nx.TaggedObjectManager.GetTaggedObject(c)
+                rule = [work_part.ScRuleFactory.CreateRuleBaseCurveDumb(curves_)]
 
                 section = work_part.Sections.CreateSection(
                     chaining_tolerance, distance_tolerance, angle_tolerance
                 )
                 section.AllowSelfIntersection(False)
-                section.SetAllowedEntityTypes(Nx.Section.AllowTypes.OnlyCurves)
+                section.SetAllowedEntityTypes(Nx.Section.AllowTypes.CurvesAndPoints)
+                curve = Nx.TaggedObjectManager.GetTaggedObject(obj[0])
                 section.AddToSection(
-                    rule, spline, Nx.NXObject.Null, Nx.NXObject.Null,
+                    rule, curve, Nx.NXObject.Null, Nx.NXObject.Null,
                     help_point, Nx.Section.Mode.Create, False
                 )
-                direction = section.GetStartAndDirection()
 
-                # Set same direction for all sections
-                if check_directions:
-                    if direction[2].X < 0:
-                        section.ReverseDirection()
-
-                if surface_type == 'studio_spline':
-                    pass
-                    # builder.SectionList.Append(section)
+                if set_start_and_direction:
+                    dir = direction[i]
+                    try:
+                        pt = [p * self.units for p in point]
+                        curve = section.GetStartAndDirection()[0]
+                        section.SetStartAndDirection(curve, Nx.Point3d(*pt), Nx.Vector3d(*dir))
+                        builder.SectionsList.Append(section)
+                        sections.append(section)
+                    except Nx.NXException as ex:
+                        print(str(ex))
+                        section.Destroy()
                 else:
                     builder.SectionsList.Append(section)
-
-                sections[i] = section
+                    sections.append(section)
 
             if surface_type == 'studio_spline':
                 builder.AlignmentMethod.SetSections(sections)
             else:
                 builder.Alignment.SetSections(sections)
 
+            if preserve_shape:
+                on_path_dim_builders = []
+                builder.Alignment.ComputeDefaultPoints()
+                on_path_dim_builders = []
+                for i, sec in enumerate(sections):
+                    num_points = builder.Alignment.NumberOfPointsPerSection
+                    for j in range(num_points):
+                        on_path_dim_builder = builder.Alignment.GetPoint(i, j)
+                        builder.Alignment.RemovePoint(on_path_dim_builder)
+                for point, sec in zip(align_points, sections):
+                    pt = [p * self.units for p in point]
+                    nx_pt = work_part.Points.CreatePoint(Nx.Point3d(*pt))
+                    on_path_dim_builder = builder.Alignment.CreateOnPathDimBuilder(sec, Nx.Point3d(*pt))
+                    on_path_dim_builder.ThroughPoint = nx_pt
+                    if on_path_dim_builder.IsFlipped:
+                        print(on_path_dim_builder.IsFlipped)
+                        on_path_dim_builder.IsFlipped = False
+                    on_path_dim_builder.Update(
+                        Nx.GeometricUtilities.OnPathDimensionBuilder.UpdateReason.ThroughPoint
+                    )
+                    on_path_dim_builders.append(on_path_dim_builder)
+
+            if use_spine_curve:
+                builder.Alignment.AlignCurve.SetAllowedEntityTypes(Nx.Section.AllowTypes.OnlyCurves)
+                builder.Alignment.AlignCurve.AllowSelfIntersection(True)
+                builder.Alignment.AlignCurve.AddToSection
+                nx_spine_curve = Nx.TaggedObjectManager.GetTaggedObject(spine_curve)
+                feature_spine = [nx_spine_curve]
+                curve_feature_rule = work_part.ScRuleFactory.CreateRuleCurveFeature(feature_spine)
+                spine_rules = [curve_feature_rule]
+                spine_help_point = [p * self.units for p in spine_help_point]
+                nx_spine_help_point = Nx.Point3d(*spine_help_point)
+                builder.Alignment.AlignCurve.AddToSection(
+                    spine_rules, Nx.NXObject.Null, Nx.NXObject.Null, Nx.NXObject.Null,
+                    nx_spine_help_point, Nx.Section.Mode.Create, False
+                )
+
+            for section in sections:
+                direction = section.GetStartAndDirection()
+                # Set same direction for all sections
+                if check_directions:
+                    if direction[2].Z < 0:
+                        section.ReverseDirection()
+
             try:
                 nx_object = builder.CommitFeature()
+                nx_object.HideParents()
                 obj_tag = nx_object.Tag
                 builder.Destroy()
                 msg = 'Through curves object has been created successfully'
                 return obj_tag, msg
             except Nx.NXException as ex:
+                builder.Destroy()
                 msg = 'Through curves object has not been created. An error occurred: {}'.format(str(ex))
                 return False, msg
 
@@ -452,11 +501,15 @@ class NX:
         :return: False or Tagged Object and logging message
         """
 
-        section_curves = parameters.get('sections', {})
-        guide_curves = parameters.get('guides', {})
+        section_curves = parameters.get('sections', [])
+        guide_curves = parameters.get('guides', [])
         section_help_points = parameters.get('section_help_points', None)
         guide_help_points = parameters.get('guide_help_points', None)
         preserve_shape = parameters.get('preserve_shape', False)
+        align_points = parameters.get('align_points', None)
+        
+        direction = parameters.get('direction')
+        set_direction = parameters.get('set_direction', False)
 
         distance_tolerance = parameters.get('distance_tolerance', 0.01)
         chaining_tolerance = parameters.get('chaining_tolerance', 0.0095)
@@ -470,6 +523,7 @@ class NX:
 
             # Create object of SweptBuilder class
             builder = work_part.Features.CreateSweptBuilder(Ftr.Swept.Null)
+            builder.InterpolationOption = Ftr.SweptBuilderInterpolationOptions.Linear
             builder.G0Tolerance = g0_tolerance
             builder.G1Tolerance = g1_tolerance
             builder.PreserveShapeOption = preserve_shape
@@ -516,42 +570,63 @@ class NX:
             builder.ScalingMethod.PerimeterLaw.LawCurve.ChainingTolerance = chaining_tolerance
             builder.ScalingMethod.PerimeterLaw.LawCurve.AngleTolerance = angle_tolerance
 
+            if preserve_shape:
+                builder.AlignmentMethod.AlignType = Nx.GeometricUtilities.AlignmentMethodBuilder.Type.Points
+                builder.PreserveGuideShapeOption = True
+
             # Create features, section and guide curves
-            features = [Ftr.Feature.Null] * len(section_curves)
-            sections = [Nx.Section.Null] * len(section_curves)
-            guides_features = [Ftr.Feature.Null] * len(guide_curves)
+            features = []
+            sections = []
+            guides_features = []
 
             # Setting sections
-            for i, obj in enumerate(section_curves.values()):
+            for i, (obj, point) in enumerate(zip(section_curves, align_points)):
                 studio_spline = Nx.TaggedObjectManager.GetTaggedObject(obj)
                 spline = studio_spline.GetEntities()[0]
-                help_point = Nx.Point3d([point for point in section_help_points[i]])
+                hp = [point * self.units for point in section_help_points[i]]
+                help_point = Nx.Point3d(*hp)
                 feature = [Ftr.Feature.Null] * 1
                 feature[0] = studio_spline
-                features[i] = spline
+                features.append(spline)
                 rule = [work_part.ScRuleFactory.CreateRuleCurveFeature(feature)]
 
                 section = work_part.Sections.CreateSection(
                     chaining_tolerance, distance_tolerance, angle_tolerance
                 )
-                section.AllowSelfIntersection(True)
-                section.SetAllowedEntityTypes(Nx.Section.AllowTypes.OnlyCurves)
+                section.AllowSelfIntersection(False)
+                section.SetAllowedEntityTypes(Nx.Section.AllowTypes.CurvesAndPoints)
+
                 section.AddToSection(
                     rule, spline, Nx.NXObject.Null, Nx.NXObject.Null,
                     help_point, Nx.Section.Mode.Create, False
                 )
-                builder.SectionList.Append(section)
-                sections[i] = section
+                if set_direction:
+                    dir = direction[i]
+                    try:
+                        pt = [p * self.units for p in point]
+                        curve = section.GetStartAndDirection()[0]
+                        section.SetStartAndDirection(curve, Nx.Point3d(*pt), Nx.Vector3d(*dir))
+                        builder.SectionList.Append(section)
+                        sections.append(section)
+                    except Nx.NXException as ex:
+                        print(str(ex))
+                        section.Destroy()
+
+                else:
+                    builder.SectionList.Append(section)
+                    sections.append(section)
+
 
             # Setting guide curves
-            for i, obj in enumerate(guide_curves.values()):
+            for i, obj in enumerate(guide_curves):
 
                 guide_spline = Nx.TaggedObjectManager.GetTaggedObject(obj)
                 spline = guide_spline.GetEntities()[0]
-                help_point = Nx.Point3d(*guide_help_points[i])
+                ghp = [p * self.units for p in guide_help_points[i]]
+                help_point = Nx.Point3d(*ghp)
                 feature = [Ftr.Feature.Null] * 1
                 feature[0] = guide_spline
-                guides_features[i] = spline
+                guides_features.append(spline)
                 rule = [work_part.ScRuleFactory.CreateRuleCurveFeature(feature)]
 
                 section = work_part.Sections.CreateSection(
@@ -572,6 +647,27 @@ class NX:
             builder.ScalingMethod.ScalingOption = Nx.GeometricUtilities.ScalingMethodBuilder.ScalingOptions.Uniform
             builder.AlignmentMethod.SetSections(sections)
 
+            builder.AlignmentMethod.ComputeDefaultPoints()
+            if preserve_shape:
+                on_path_dim_builders = []
+                for i, sec in enumerate(sections):
+                    num_points = builder.AlignmentMethod.NumberOfPointsPerSection
+                    for j in range(num_points):
+                        on_path_dim_builder = builder.AlignmentMethod.GetPoint(i, j)
+                        builder.AlignmentMethod.RemovePoint(on_path_dim_builder)
+                for point, sec in zip(align_points, sections):
+                    pt = [p * self.units for p in point]
+                    nx_pt = work_part.Points.CreatePoint(Nx.Point3d(*pt))
+                    on_path_dim_builder = builder.AlignmentMethod.CreateOnPathDimBuilder(sec, Nx.Point3d(*pt))
+                    on_path_dim_builder.ThroughPoint = nx_pt
+                    on_path_dim_builder.Update(
+                        Nx.GeometricUtilities.OnPathDimensionBuilder.UpdateReason.ThroughPoint
+                    )
+                    on_path_dim_builders.append(on_path_dim_builder)
+
+                builder.AlignmentMethod.SetAlignPoints(on_path_dim_builders)
+
+            builder.Validate()
             try:
                 nx_object = builder.Commit()
                 obj_tag = nx_object.Tag
@@ -581,3 +677,177 @@ class NX:
             except Nx.NXException as ex:
                 msg = 'Swept object has not been created. An error occured {}'.format(str(ex))
                 return False, msg
+
+    def create_plane(self, method: int=1, **kwargs):
+        
+        angle_tolerance = kwargs.get('angle_tolerance', 0.5)
+        distance_tolerance = kwargs.get('distance_tolerance', 0.01)
+        chaining_tolerance = kwargs.get('chaining_tolerance', 0.0095)
+
+        work_part = self.session.Parts.Work
+        datum_plane_builder = work_part.Features.CreateDatumPlaneBuilder(Nx.Features.Feature.Null)
+        plane = datum_plane_builder.GetPlane()
+
+        if method == 1:
+            point = kwargs.get('point')
+            point = [p * self.units for p in point]
+            spline = kwargs.get('spline')
+            if not (point or spline):
+                msg = 'Plane at point {} through {} has not been created.'.format(point, spline)
+                return False, msg
+
+            plane.SetUpdateOption(Nx.SmartObject.UpdateOption.WithinModeling)
+            section = work_part.Sections.CreateSection(
+                chaining_tolerance, distance_tolerance, angle_tolerance
+            )
+            section.SetAllowedEntityTypes(Nx.Section.AllowTypes.OnlyCurves)
+
+            nx_studio_spline = Nx.TaggedObjectManager.GetTaggedObject(spline)
+            nx_spline = nx_studio_spline.GetEntities()[0]
+
+            feature = [nx_studio_spline]
+            rule = [work_part.ScRuleFactory.CreateRuleCurveFeatureTangent(
+                feature, nx_spline, Nx.Curve.Null, False, 0.0095, 0.5)]
+
+            section.AllowSelfIntersection(False)
+            help_point = Nx.Point3d(*point)
+            nx_point = work_part.Points.CreatePoint(help_point)
+            section.AddToSection(rule, nx_spline, Nx.NXObject.Null, Nx.NXObject.Null,
+                help_point, Nx.Section.Mode.Create, False)
+            plane.SetMethod(Nx.PlaneTypes.MethodType.Frenet)
+            geometry = [section, nx_point]
+            plane.SetGeometry(geometry)
+            plane.SetFrenetSubtype(Nx.PlaneTypes.FrenetSubtype.ThruPoint)
+            plane.SetReverseSection(False)
+            plane.SetAlternate(Nx.PlaneTypes.AlternateType.One)
+            plane.SetFlip(True)
+
+            try:
+                datum_plane_builder = datum_plane_builder.CommitFeature()
+                datum_plane = datum_plane_builder.DatumPlane
+                plane_tag = datum_plane.Tag
+                msg = 'Plane through point {} tangent to curve {} has' \
+                ' been successfully creates.'.format(point, nx_studio_spline)
+                return plane_tag, msg
+            except Nx.NXException as ex:
+                msg = 'Plane through point {} tangent to curve {} has not' \
+                ' been creates. An error occurred{}'.format(point, nx_studio_spline, str(ex))
+                return False, msg
+
+    def create_sketch(self, **kwargs):
+        
+        work_part = self.session.Parts.Work
+        datum = kwargs.get('datum', None)
+        datum_axis = kwargs.get('datum_axis', [1.0, 0.0, 0.0])
+
+        if not datum:
+            msg = 'Sketch has not been created'
+            return False, msg
+        else:
+            nx_datum = Nx.TaggedObjectManager.GetTaggedObject(datum)
+
+        origin = kwargs.get('origin', [0.0, 0.0, 0.0])
+        origin = [p * self.units for p in origin]
+        normal = kwargs.get('normal', [0.0, 0.0, 1.0])
+        normal = [p * self.units for p in normal]
+
+        sketch_builder = work_part.Sketches.CreateSketchInPlaceBuilder2(Nx.Sketch.Null)
+
+        nx_origin = Nx.Point3d(*origin)
+        nx_normal = Nx.Vector3d(*normal)
+        nx_point = work_part.Points.CreatePoint(nx_origin)
+
+        datum_axis = work_part.Datums.FindObject("DATUM_CSYS(0) X axis")
+        direction = work_part.Directions.CreateDirection(
+            datum_axis, Nx.Sense.Forward, Nx.SmartObject.UpdateOption.WithinModeling
+        )
+
+        xform = work_part.Xforms.CreateXformByPlaneXDirPoint(
+            nx_datum, direction, nx_point, Nx.SmartObject.UpdateOption.WithinModeling, 1.0, False, False
+        )
+        cartesian_system = work_part.CoordinateSystems.CreateCoordinateSystem(
+            xform, Nx.SmartObject.UpdateOption.WithinModeling
+        )
+        sketch_builder.Csystem = cartesian_system
+        plane = work_part.Planes.CreatePlane(nx_origin, nx_normal, Nx.SmartObject.UpdateOption.WithinModeling)
+        plane.SetMethod(Nx.PlaneTypes.MethodType.Coincident)
+        plane.SetGeometry([nx_datum])
+        sketch_builder.Csystem = cartesian_system
+        sketch_builder.PlaneReference = plane
+        sketch_builder.SketchOrigin = nx_point
+        
+        try:
+            nx_sketch = sketch_builder.Commit()
+            msg = 'Sketch object has successfully been created.'
+            nx_sketch_tag = nx_sketch.Tag
+            return nx_sketch_tag, msg
+        except Nx.Exception as ex:
+            msg = 'Sketch object has not been created. An error occurred {}.'.format(str(ex))
+            return False, msg
+
+    def join_curves(self, **kwargs):
+
+        shapes = kwargs.get('shapes', ['line'])
+        distance_tolerance = kwargs.get('distance_tolerance', 0.01)
+        angle_tolerance = kwargs.get('angle_tolerance', 0.5)
+        sec_distance_tolerance = kwargs.get('sec_distance_tolerance', 0.01)
+        sec_chaining_tolerance = kwargs.get('sec_chaining_tolerance', 0.0095)
+        sec_angle_tolerance = kwargs.get('angle_tolerance', 0.5)
+        suppress = kwargs.get('suppress', True)
+
+        work_part = self.session.Parts.Work
+
+        join_curve_builder = work_part.Features.CreateJoinCurvesBuilder(Nx.Features.Feature.Null)
+        join_curve_builder.DistanceTolerance = distance_tolerance
+        join_curve_builder.AngleTolerance = angle_tolerance
+        join_curve_builder.Section.DistanceTolerance = sec_distance_tolerance
+        join_curve_builder.Section.AngleTolerance = sec_angle_tolerance
+        join_curve_builder.Section.ChainingTolerance = sec_chaining_tolerance
+        join_curve_builder.Section.SetAllowedEntityTypes(Nx.Section.AllowTypes.OnlyCurves)
+
+        curves = []
+        tagged_curves = []
+        for shape, points in shapes.items():
+            if shape == 'arc':
+                for arc in points:
+                    points = arc
+                    pt = [p * self.units for p in points[0]]
+                    statr_pt = Nx.Point3d(*pt)
+                    pt = [p * self.units for p in points[1]]
+                    help_point = pt
+                    point_on = Nx.Point3d(*pt)
+                    pt = [p * self.units for p in points[2]]
+                    end_point = Nx.Point3d(*pt)
+                    nx_arc = work_part.Curves.CreateArc(statr_pt, point_on, end_point, False)
+                    obj_tag = nx_arc[0].Tag
+                    curves.append(nx_arc[0])
+                    tagged_curves.append(obj_tag)
+            elif shape == 'line':
+                for line in points:
+                    points = line
+                    pt = [p * self.units for p in points[0]]
+                    start_point = Nx.Point3d(*pt)
+                    pt = [p * self.units for p in points[1]]
+                    end_point = Nx.Point3d(*pt)
+                    nx_line = work_part.Curves.CreateLine(start_point, end_point)
+                    obj_tag = nx_line.Tag
+                    curves.append(nx_line)
+                    tagged_curves.append(obj_tag)
+
+        curve_dumb_rule = [work_part.ScRuleFactory.CreateRuleBaseCurveDumb(curves)]
+
+        nx_help_point = Nx.Point3d(*help_point)
+        join_curve_builder.Section.AddToSection(
+            curve_dumb_rule, curves[0], Nx.NXObject.Null, Nx.NXObject.Null, nx_help_point,
+            Nx.Section.Mode.Create, False
+        )
+        try:
+            nx_obj = join_curve_builder.Commit()
+            if suppress:
+                nx_obj.Suppress()
+            nx_obj.HideParents()
+            msg = 'Join curve has been created'
+            return nx_obj.Tag, tagged_curves, msg
+        except Nx.Exception as ex:
+            msg = 'Join curve has not been created. An error occurred {}'.format(str(ex))
+            return False, False, msg

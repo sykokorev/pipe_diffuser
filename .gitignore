@@ -4,3 +4,5 @@ indata/
 test_subprc.py
 outdata/
 *.prt
+*test*.py
+test.py
