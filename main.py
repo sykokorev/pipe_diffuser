@@ -1,9 +1,11 @@
+from http.server import executable
+from stat import FILE_ATTRIBUTE_REPARSE_POINT
 import sys
 import os
 import logging
 import subprocess
 import json
-
+import tkinter as tk
 
 import utils.p1112_parser as p1112
 
@@ -12,27 +14,34 @@ from mathlib.bezier import *
 from mathlib.line_interpolation import LineInterpolation
 from diffuser.pipe_diffuser import PipeDiffuser as diffuser
 
-from utils.open_file import *
-from utils.utils import find_nx_journal_run
+from gui.gui import *
+from utils.utils import find_nx_journal_run, select_file
 
 
 if __name__ == "__main__":
 
+    # GUI
+    font = ("Helvetica", 14)
+    root = tk.Tk()
+    window = GUI(master=root)
+    root.mainloop()
+    indata_file = window.indata_file
+    saveas = window.saveas
+    num_sec = window.num_sec
+    
+    if not num_sec:
+        tk.messagebox.showerror("showerror", "Number of section can't be equal 0")
+        sys.exit(-1)
+
     units = 25.4
 
-    indata_file = select_file(
-        filetypes=(('p1112 Data Files', '*.p1112'), ('All Files', '*.*')),
-        initialdir='/',
-        title='Open p1112 Indata File'
-    )
-
     logger = logging.getLogger(__name__)
-    logger_file = 'diffuser.log'
+    logger_file = os.path.join(os.path.split(saveas)[0], 'diffuser.log')
+
     if os.path.exists(logger_file):
         os.remove(logger_file)
     logging.basicConfig(filename=logger_file, level=logging.DEBUG)
 
-    saveas = save_file_as(title='Save NX model file')
     outdata_dir = os.path.join(os.path.split(saveas)[0], 'outdata')
     
     if not os.path.exists(outdata_dir):
@@ -92,7 +101,7 @@ if __name__ == "__main__":
     area_line = LineInterpolation(points=area)
     twist_line = LineInterpolation(points=twist)
 
-    norm_length = arange(start=0.0, stop=1.02, step=0.02)
+    norm_length = linspace(start=0.0, stop=1.0, num_points=num_sec)
     xr_points = [xr_bezier.norm_length_point(ni)[1] for ni in norm_length]
     xr_points = [[abs(round(xri[0], 4)), abs(round(xri[1], 4))] for xri in xr_points]
 
@@ -115,7 +124,6 @@ if __name__ == "__main__":
     length = [mean_line_length * nl for nl in norm_length]
 
     point = xbeta_bezier.get_point(point=(0, 3.5))
-
     wh_points = wh_line.interpolate(points=length)
     area_points = area_line.interpolate(points=length)
     twist_points = twist_line.interpolate(points=length)
@@ -125,16 +133,39 @@ if __name__ == "__main__":
     pipe_diffuser.twist = twist_points
 
     cross_sections = pipe_diffuser.compute_cross_sections()
-    derivatives = pipe_diffuser.bezier_mean_line.derivatives(norm_length=norm_length)
 
     json_outdata = {
-        "twist": twist_points,
+        "twist": twist_points,  
         "mean_line": mean_line,
         "cross_sections": cross_sections,
         "prt": os.path.normpath(saveas)
     }
 
-    outdata_file = os.path.join(outdata_dir, 'json_data.json')
+    prt_file_name = os.path.splitext(os.path.split(saveas)[1])[0]
+    outdata_file = os.path.join(outdata_dir, f'{prt_file_name}_json_data.json')
+    mean_line_file = os.path.join(outdata_dir, f'{prt_file_name}_mean_line.dat')
+    cross_sections_file = os.path.join(outdata_dir, f'{prt_file_name}_cross_sections.dat')
+
+    with open(mean_line_file, 'w') as f:
+        for point in mean_line:
+            f.write(
+                f'{round(point[0] * units, 4)},{round(point[1] * units, 4)},' \
+                f'{round(point[2] * units, 4)}\n'
+            )
+
+    with open(cross_sections_file, 'w') as f:
+        for si, section in enumerate(cross_sections, 1):
+            f.write(f'Section {si}\n')
+            for i, shape in enumerate(section[1]):
+                if i == 0 or i == 2:
+                    f.write('Arc\n')
+                else:
+                    f.write('Line\n')
+                for points in shape:
+                    f.write(
+                        f'{round(points[0] * units, 4)},{round(points[1] * units, 4)},' \
+                        f'{round(points[2] * units, 4)}\n'
+                    )
 
     with open(outdata_file, 'w') as fo:
         json.dump(json_outdata, fo)
@@ -147,3 +178,23 @@ if __name__ == "__main__":
             '-args', os.path.normpath(os.path.abspath(outdata_file))
         ]
         code = subprocess.run(command)
+    else:
+        msg = "NX run journal file was not found\n. Please check if NX is installed.\n"
+        logger.error(msg)
+        tk.messagebox.showerror("showerror", msg)
+        of_params = {
+            'filetypes': ('NX run journal file', 'run_journal.exe'),
+            'title': 'Open NX run journal file'
+        }
+        nx_journal_run = select_file(**of_params)
+        if not nx_journal_run:
+            sys.exit(-1)
+        else:
+            command = [
+            nx_journal_run, ".nx_builder.py", 
+            '-args', os.path.normpath(os.path.abspath(outdata_file))
+            ]
+            code = subprocess.run(command)
+
+    os.remove(outdata_file)
+    tk.messagebox.showinfo("showinfo", "Execution completed.")

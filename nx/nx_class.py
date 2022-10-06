@@ -383,16 +383,10 @@ class NX:
             # Set secionts
             sections = []
             for i, (obj, point) in enumerate(zip(section_curves, align_points)):
-
-                # studio_spline = Nx.TaggedObjectManager.GetTaggedObject(obj)
-                # spline = studio_spline.GetEntities()[0]
                 help_point = [p * self.units for p in help_points[i]]
                 help_point = Nx.Point3d(*help_points[i])
 
-                # feature = [Ftr.Feature.Null] * 1
-                # feature[0] = studio_spline
-                # features.append(spline)
-                curves_ = [Nx.IBaseCurve.Null] * 4
+                curves_ = [Nx.IBaseCurve.Null] * len(obj)
                 for i, c in enumerate(obj):
                     curves_[i] =  Nx.TaggedObjectManager.GetTaggedObject(c)
                 rule = [work_part.ScRuleFactory.CreateRuleBaseCurveDumb(curves_)]
@@ -810,29 +804,31 @@ class NX:
         for shape, points in shapes.items():
             if shape == 'arc':
                 for arc in points:
-                    points = arc
-                    pt = [p * self.units for p in points[0]]
-                    statr_pt = Nx.Point3d(*pt)
-                    pt = [p * self.units for p in points[1]]
-                    help_point = pt
-                    point_on = Nx.Point3d(*pt)
-                    pt = [p * self.units for p in points[2]]
-                    end_point = Nx.Point3d(*pt)
-                    nx_arc = work_part.Curves.CreateArc(statr_pt, point_on, end_point, False)
-                    obj_tag = nx_arc[0].Tag
-                    curves.append(nx_arc[0])
-                    tagged_curves.append(obj_tag)
+                    if arc:
+                        points = arc
+                        pt = [p * self.units for p in points[0]]
+                        statr_pt = Nx.Point3d(*pt)
+                        pt = [p * self.units for p in points[1]]
+                        help_point = pt
+                        point_on = Nx.Point3d(*pt)
+                        pt = [p * self.units for p in points[2]]
+                        end_point = Nx.Point3d(*pt)
+                        nx_arc = work_part.Curves.CreateArc(statr_pt, point_on, end_point, False)
+                        obj_tag = nx_arc[0].Tag
+                        curves.append(nx_arc[0])
+                        tagged_curves.append(obj_tag)
             elif shape == 'line':
                 for line in points:
-                    points = line
-                    pt = [p * self.units for p in points[0]]
-                    start_point = Nx.Point3d(*pt)
-                    pt = [p * self.units for p in points[1]]
-                    end_point = Nx.Point3d(*pt)
-                    nx_line = work_part.Curves.CreateLine(start_point, end_point)
-                    obj_tag = nx_line.Tag
-                    curves.append(nx_line)
-                    tagged_curves.append(obj_tag)
+                    if line:
+                        points = line
+                        pt = [p * self.units for p in points[0]]
+                        start_point = Nx.Point3d(*pt)
+                        pt = [p * self.units for p in points[1]]
+                        end_point = Nx.Point3d(*pt)
+                        nx_line = work_part.Curves.CreateLine(start_point, end_point)
+                        obj_tag = nx_line.Tag
+                        curves.append(nx_line)
+                        tagged_curves.append(obj_tag)
 
         curve_dumb_rule = [work_part.ScRuleFactory.CreateRuleBaseCurveDumb(curves)]
 

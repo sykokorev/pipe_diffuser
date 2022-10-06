@@ -1,11 +1,10 @@
 import sys
 import json
-import logging
+import tkinter as tk
 import NXOpen
 
 
 from nx.nx_class import NX
-import mathlib.vector as vc
 
 
 if __name__ == "__main__":
@@ -19,7 +18,6 @@ if __name__ == "__main__":
     cross_sections = json_data['cross_sections']
     mean_line = json_data['mean_line']
     prt_file = json_data['prt']
-
 
     nx = NX(units=25.4)
     is_created, log_new_file = nx.create_new_nx_file(file_name=prt_file)
@@ -43,11 +41,14 @@ if __name__ == "__main__":
                 }, suppress=True
             ))
             section_help_points.append(section[1][0][1])
-            guide_curves[0].append(section[1][2][0])
-            guide_curves[1].append(section[1][3][0])
+            # guide_curves[0].append(section[1][2][0])
+            # guide_curves[1].append(section[1][3][0])
 
         arc_line = [curve[1] for curve in curves]
-        body, msg = nx.through_curves(sections=arc_line)
+        body, msg = nx.through_curves(
+            sections=arc_line, preserve_shape=False,
+            align_points=section_help_points
+        )
 
         # tagged_guide_curves = []
         # for i, curve in enumerate(guide_curves, 1):
@@ -74,4 +75,5 @@ if __name__ == "__main__":
         #     preserve_shape=False, align_points=guide_curves[0]
         # )
 
+        print(msg)
         nx.close_all(prt_file=prt_file)

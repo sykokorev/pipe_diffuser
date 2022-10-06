@@ -179,22 +179,22 @@ class PipeDiffuser:
         if wh == 1:
             cross_section.append([
                 point for point in c1.get_points(
-                    a1=3*math.pi/2 - math.radians(5), a2=math.pi/2 + math.radians(5),
+                    a1=3*math.pi/2 - math.radians(1.5), a2=math.pi/2 + math.radians(1.5),
                     num_points=3)
             ])
             cross_section.append([
                 point for point in c1.get_points(
-                    a1=math.pi/2 + math.radians(5), a2=math.pi/2 - math.radians(5),
+                    a1=math.pi/2 + math.radians(1.5), a2=math.pi/2 - math.radians(1.5),
                     num_points=2)
             ])
             cross_section.append([
                 point for point in c2.get_points(
-                    a1=math.pi/2 - math.radians(5), a2=-math.pi/2 + math.radians(5),
+                    a1=math.pi/2 - math.radians(1.5), a2=-math.pi/2 + math.radians(1.5),
                     num_points=3)
             ])
             cross_section.append([
                 point for point in c2.get_points(
-                    a1=-math.pi/2 + math.radians(5), a2=3*math.pi/2 - math.radians(5),
+                    a1=-math.pi/2 + math.radians(1.5), a2=3*math.pi/2 - math.radians(1.5),
                     num_points=2)
             ])
         else:

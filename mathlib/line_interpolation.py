@@ -31,7 +31,6 @@ class LineInterpolation(Line):
             for line in self.lines:
                 if line.first_point[0] <= point <= line.last_point[0]:
                     out.append(line.get_point(abscissa=point))
-
         return out
     
     def __repr__(self):
