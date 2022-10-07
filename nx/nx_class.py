@@ -343,7 +343,6 @@ class NX:
         use_spine_curve = parameters.get('use_spine_curve', False)
         spine_curve = parameters.get('spine_curve', None)
         spine_help_point = parameters.get('spine_help_point', None)
-        # curves = parameters.get('curves')
 
         set_start_and_direction = parameters.get('set_start_and_direction', False)
         direction = parameters.get('direction')
@@ -361,6 +360,7 @@ class NX:
                 builder.AlignmentMethod.AlignCurve.DistanceTolerance = distance_tolerance
                 builder.AlignmentMethod.AlignCurve.ChainingTolerance = chaining_tolerance
                 builder.AlignmentMethod.AlignCurve.AngleTolerance = angle_tolerance
+                builder.PositionTolerance = distance_tolerance
             elif surface_type == 'through_curves':
                 builder = work_part.Features.CreateThroughCurvesBuilder(Ftr.Feature.Null)
                 builder.BodyPreference = Ftr.ThroughCurvesBuilder.BodyPreferenceTypes.Sheet
@@ -377,6 +377,7 @@ class NX:
                 builder.SectionTemplateString.DistanceTolerance = distance_tolerance
                 builder.SectionTemplateString.ChainingTolerance = chaining_tolerance
                 builder.SectionTemplateString.AngleTolerance = angle_tolerance
+                builder.PositionTolerance = distance_tolerance
             else:
                 builder = work_part.Features.CreateThroughCurvesBuilder(Ftr.Feature.Null)
 
@@ -408,12 +409,16 @@ class NX:
                         pt = [p * self.units for p in point]
                         curve = section.GetStartAndDirection()[0]
                         section.SetStartAndDirection(curve, Nx.Point3d(*pt), Nx.Vector3d(*dir))
+                        section.DistanceTolerance = distance_tolerance
+                        section.ChainingTolerance = chaining_tolerance
                         builder.SectionsList.Append(section)
                         sections.append(section)
                     except Nx.NXException as ex:
                         print(str(ex))
                         section.Destroy()
                 else:
+                    section.DistanceTolerance = distance_tolerance
+                    section.ChainingTolerance = chaining_tolerance
                     builder.SectionsList.Append(section)
                     sections.append(section)
 

@@ -47,7 +47,9 @@ if __name__ == "__main__":
         arc_line = [curve[1] for curve in curves]
         body, msg = nx.through_curves(
             sections=arc_line, preserve_shape=False,
-            align_points=section_help_points
+            align_points=section_help_points,
+            distance_tolerance=10**-5,
+            chaining_tolerance=9.5*10**-6
         )
 
         # tagged_guide_curves = []

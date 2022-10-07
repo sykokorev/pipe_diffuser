@@ -1,11 +1,11 @@
-from http.server import executable
-from stat import FILE_ATTRIBUTE_REPARSE_POINT
 import sys
 import os
 import logging
 import subprocess
 import json
+import math
 import tkinter as tk
+import matplotlib.pyplot as plt
 
 import utils.p1112_parser as p1112
 
@@ -16,6 +16,8 @@ from diffuser.pipe_diffuser import PipeDiffuser as diffuser
 
 from gui.gui import *
 from utils.utils import find_nx_journal_run, select_file
+
+from chart.chart import PlotData
 
 
 if __name__ == "__main__":
@@ -195,6 +197,50 @@ if __name__ == "__main__":
             '-args', os.path.normpath(os.path.abspath(outdata_file))
             ]
             code = subprocess.run(command)
+
+    # Create charts
+    pic_dir = os.path.join(outdata_dir, 'pictures')
+    if not os.path.exists(pic_dir):
+        try:
+            os.mkdir(pic_dir)
+        except FileExistsError as ex:
+            msg = 'Directory has not been created an error occurs {ex}'
+            logger.exception(msg)
+
+    # Norm Area (Ai/A1) distriburtion
+    a1 = area_points[0][1]
+    a_norm_distr = [[nl, a[1] / a1] for a, nl in zip(area_points, norm_length)]
+    fn = os.path.join(pic_dir, f'{prt_file_name}_area_dist.jpg')
+
+    x_major_ticks = [a[1] for a in a_norm_distr]
+    chart = PlotData(data=a_norm_distr, 
+        marker='s', color='b', markerfacecolor='b',
+        title='Norm Length vs Norm Area (Ai/A1)', axis_labels=['Norm length', 'Norm Area'],
+        major_ticks=[linspace(0.0, 1.0, 11), linspace(1, math.ceil(max(x_major_ticks)), 11)]
+    )
+    fig, ax = chart.plt_2Dgraph()
+    fig.set_size_inches(10, 10)
+    plt.savefig(fn, dpi=300, bbox_inches="tight", pad_inches=1)
+
+    # ECA
+    fn = os.path.join(pic_dir, f'{prt_file_name}_eca.jpg')
+    eca = [
+        [nl, (2 * math.degrees(math.atan((ai1[1] ** 0.5 - ai[1] ** 0.5) / math.pi ** 0.5) / (li1 - li) ))]
+        for ai1, ai, li1, li, nl in zip(area_points[1:], area_points, length[1:], length, norm_length)
+    ]
+    x_major_ticks = [e[1] for e in eca]
+    chart = PlotData(
+        data=eca, marker_color='r',
+        marker='s', color='r', markerfacecolor='r',
+        title='Norm Length vs ECA(LOC)', axis_labels=['Norm Length', 'ECA(LOC)'],
+        major_ticks=[
+            linspace(0.0, 1.0, 11), 
+            linspace(math.floor(min(x_major_ticks)), math.ceil(max(x_major_ticks)), 11)
+        ]
+    )
+    fig, ax = chart.plt_2Dgraph()
+    fig.set_size_inches(10, 10)
+    plt.savefig(fn, dpi=300, bbox_inches="tight", pad_inches=1)
 
     os.remove(outdata_file)
     tk.messagebox.showinfo("showinfo", "Execution completed.")
