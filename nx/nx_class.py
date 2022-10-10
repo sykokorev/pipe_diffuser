@@ -849,6 +849,6 @@ class NX:
             nx_obj.HideParents()
             msg = 'Join curve has been created'
             return nx_obj.Tag, tagged_curves, msg
-        except Nx.Exception as ex:
+        except Nx.NXException as ex:
             msg = 'Join curve has not been created. An error occurred {}'.format(str(ex))
             return False, False, msg

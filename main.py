@@ -1,3 +1,4 @@
+import enum
 import sys
 import os
 import logging
@@ -89,6 +90,21 @@ if __name__ == "__main__":
         msg = 'Area distribution has not been found. Input data will be applied.'
         logger.info(msg)
 
+    # Area distribution
+    radius_dist = [
+        (a[1] / math.pi) ** 0.5 for a in area[:2]
+    ]
+    radius = linspace(start=radius_dist[0], stop=radius_dist[1], num_points=51)
+    length = linspace(start=area[0][0], stop=area[1][0], num_points=51)
+
+    area.pop(0)
+    area.pop(0)
+
+    area_dist = [[l, math.pi * r ** 2] for l, r in zip(length, radius)]
+    area_dist.extend(area)
+
+    area = area_dist
+
     twist, exception = p1112.distribution(in_file=indata_file, string=r'twist\s+\w+')
     if not exception:
         msg = 'Twist distribution has not been found. Input data will be applied.'
@@ -100,6 +116,7 @@ if __name__ == "__main__":
     xr_bezier = BezierThroughPoints(points=xr, npoints=2)
     xbeta_bezier = BezierThroughPoints(points=xbeta, npoints=2)
     wh_line = LineInterpolation(points=wh)
+
     area_line = LineInterpolation(points=area)
     twist_line = LineInterpolation(points=twist)
 
@@ -116,7 +133,10 @@ if __name__ == "__main__":
         'xbeta': xbeta_points,
         'length_star': float(indata['len_star']),
         'del_length_star': float(indata['del_len_star']),
-        'rimp': float(indata['imp_tan_rad'])
+        'rimp': float(indata['imp_tan_rad']),
+        'radial_gap': float(indata['radial_gap']),
+        'r_exit_case': float(indata['r_exit_case'])
+
     }
 
     pipe_diffuser = diffuser(**diffuser_params)
@@ -159,7 +179,7 @@ if __name__ == "__main__":
         for si, section in enumerate(cross_sections, 1):
             f.write(f'Section {si}\n')
             for i, shape in enumerate(section[1]):
-                if i == 0 or i == 2:
+                if i in [0, 1, 2, 3]:
                     f.write('Arc\n')
                 else:
                     f.write('Line\n')
@@ -243,4 +263,11 @@ if __name__ == "__main__":
     plt.savefig(fn, dpi=300, bbox_inches="tight", pad_inches=1)
 
     os.remove(outdata_file)
+
+    # Temporary files
+    fn_area = os.path.join(outdata_dir, f'{prt_file_name}_area.dat')
+    with open(fn_area, 'w') as fo:
+        for area in area_points:
+            fo.write(f'{area[0]},{area[1]}\n')
+
     tk.messagebox.showinfo("showinfo", "Execution completed.")

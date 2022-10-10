@@ -131,7 +131,7 @@ class Circle(Shape):
                 0.0
             ]
 
-    def get_points(self, a1: float, a2: float, num_points: int) -> list:
+    def get_points(self, a1: float=0.0, a2: float=2*math.pi, num_points: int=10) -> list:
         return [[self.center_point[0] + self.__radius * math.cos(a),
                  self.center_point[1] + self.__radius * math.sin(a), 0.0]
                  for a in linspace(a1, a2, num_points)]

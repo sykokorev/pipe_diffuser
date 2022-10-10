@@ -36,8 +36,7 @@ if __name__ == "__main__":
             curves.append(
                 nx.join_curves(
                 shapes={
-                    'arc': [section[1][0], section[1][2]],
-                    'line': [section[1][1], section[1][3]],
+                    'arc': [section[1][0], section[1][1], section[1][2], section[1][3]],
                 }, suppress=True
             ))
             section_help_points.append(section[1][0][1])
@@ -46,7 +45,7 @@ if __name__ == "__main__":
 
         arc_line = [curve[1] for curve in curves]
         body, msg = nx.through_curves(
-            sections=arc_line, preserve_shape=False,
+            sections=arc_line, preserve_shape=True,
             align_points=section_help_points,
             distance_tolerance=10**-5,
             chaining_tolerance=9.5*10**-6

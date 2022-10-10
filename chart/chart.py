@@ -25,7 +25,7 @@ class PlotData:
 
     graphs = []
 
-    def __init__(self, data: np.array([]), *args, **kwargs):
+    def __init__(self, data: np.array([])=np.zeros(shape=1), *args, **kwargs):
 
         self.data = data
         self.title = kwargs.get('title', 'Chart')
