@@ -40,7 +40,7 @@ def distribution(in_file: str, string: str) -> list:
     except ValueError as ex:
         return ex, False
 
-    points = foperate.get_lines(start=index + 2, stop=index + num_of_points + 1, split=True, sep=' ')
+    points = foperate.get_lines(start=index + 2, stop=index + num_of_points + 1, split=True, sep='\s|\t')
     out = []
     try:
         for point in points:

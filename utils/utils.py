@@ -112,7 +112,8 @@ class Utils:
                 for i, line in enumerate(fi.readlines(), start=1):
                     if i in lines:
                         if split:
-                            line = line.strip().split(sep=sep)
+                            line = line.strip()#.split(sep=sep)
+                            line = re.split(sep, line)
                         out.append(line)
             return out
         except FileNotFoundError:

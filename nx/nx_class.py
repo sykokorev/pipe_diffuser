@@ -5,7 +5,6 @@ import NXOpen as Nx
 import NXOpen.Features as Ftr
 
 from NXOpen import SectionCollection as SecCol
-from symbol import parameters
 
 
 class NX:
@@ -852,3 +851,55 @@ class NX:
         except Nx.NXException as ex:
             msg = 'Join curve has not been created. An error occurred {}'.format(str(ex))
             return False, False, msg
+
+    def fill_hole(self, curves: list, help_points: list, **kwargs):
+
+        work_part = self.session.Parts.Work
+        builder = work_part.Features.FreeformSurfaceCollection.CreateFillHoleBuilder(Ftr.FillHole.Null)
+
+        tolerance = kwargs.get('tolerance', 0.01)
+        distance_tolerance = kwargs.get('distance_tolerance', 0.0095)
+        chaining_tolerance = kwargs.get('chaining_tolerance', 0.01)
+        continuity = kwargs.get('continuity', 'G1')
+
+        if continuity == 'G0':
+            nx_continuity = Ftr.FillHoleBuilder.ContinuityTypes.G1
+        elif continuity == 'G1':
+            nx_continuity = Ftr.FillHoleBuilder.ContinuityTypes.G1
+        else:
+            nx_continuity = Ftr.FillHoleBuilder.ContinuityTypes.G1
+
+        builder.Tolerance = tolerance
+        builder.DefaultEdgeContinuity = nx_continuity
+        builder.CurveChain.DistanceTolerance = distance_tolerance
+        builder.CurveChain.ChainingTolerance = chaining_tolerance
+        builder.SelectPassThrougCurves.DistanceTolerance = distance_tolerance
+        builder.SelectPassThrougCurves.ChainingTolerance = chaining_tolerance
+        builder.CurveChain.SetAllowedEntityTypes(Nx.Section.AllowTypes.OnlyCurves)
+
+        builder.CurveChain.AllowSelfIntersection(True)
+
+        markertonodelistitem = []
+
+        for i, (curve, help_point) in enumerate(zip(curves, help_points)):
+            arc = Nx.TaggedObjectManager.GetTaggedObject(curve)
+            nx_curves = [arc]
+            rule = [work_part.ScRuleFactory.CreateRuleBaseCurveDumb(nx_curves)]
+            help_point = [p * self.units for p in help_point]
+            nx_help_point = Nx.Point3d(*help_point)
+            builder.CurveChain.AddToSection(
+                rule, arc, Nx.NXObject.Null, Nx.NXObject.Null, nx_help_point, 
+                Nx.Section.Mode.Create, False)
+
+            markertonodelistitem.append(Ftr.FillHoleBuilder.BorderContinuity())
+            markertonodelistitem[i].BorderObject = arc
+            markertonodelistitem[i].Continuity = Ftr.FillHoleBuilder.ContinuityTypes.G0
+        
+        builder.SetBorderTypeItems(markertonodelistitem)
+        try:
+            nx_object = builder.Commit()
+            msg = 'Fill Hole Surface has been created'
+            return nx_object.Tag, msg
+        except Nx.NXException as ex:
+            msg = 'Fill Hole Surface has not been created. An error occurred {}'.format(str(ex))
+            return False, msg

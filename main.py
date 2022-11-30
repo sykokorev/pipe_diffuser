@@ -1,4 +1,3 @@
-import enum
 import sys
 import os
 import logging
