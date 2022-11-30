@@ -1,11 +1,9 @@
 import sys
 import json
-import logging
 import NXOpen
 
 
 from nx.nx_class import NX
-import mathlib.vector as vc
 
 
 if __name__ == "__main__":
@@ -20,7 +18,6 @@ if __name__ == "__main__":
     mean_line = json_data['mean_line']
     prt_file = json_data['prt']
 
-
     nx = NX(units=25.4)
     is_created, log_new_file = nx.create_new_nx_file(file_name=prt_file)
 
@@ -30,48 +27,31 @@ if __name__ == "__main__":
             name='mean_line', 
             closed_spline=False
             )
+        print(msg)
         
         curves = []
         section_help_points = []
-        guide_curves = [[], []]
         for section in cross_sections:
             curves.append(
                 nx.join_curves(
                 shapes={
-                    'arc': [section[1][0], section[1][2]],
-                    'line': [section[1][1], section[1][3]],
+                    'arc': [section[1][0], section[1][1], section[1][2], section[1][3]],
                 }, suppress=True
             ))
             section_help_points.append(section[1][0][1])
-            guide_curves[0].append(section[1][2][0])
-            guide_curves[1].append(section[1][3][0])
 
         arc_line = [curve[1] for curve in curves]
-        body, msg = nx.through_curves(sections=arc_line)
+        body, msg = nx.through_curves(
+            sections=arc_line, preserve_shape=True,
+            align_points=section_help_points,
+            distance_tolerance=10**-5,
+            chaining_tolerance=9.5*10**-6
+        )
+        print(msg)
 
-        # tagged_guide_curves = []
-        # for i, curve in enumerate(guide_curves, 1):
-        #     tagged_guide_curves.append(
-        #         nx.create_spline_with_points(
-        #             points=curve, 
-        #             name='giude_curve_{}'.format(i), 
-        #             closed_spline=False
-        #         )[0]
-        #     )
-
-        # tagged_curves = [curve[0] for curve in curves]
-        # guide_help_points = [
-        #     guide_curves[0][0],
-        #     guide_curves[1][0]
-        # ]
-
-        # body, msg = nx.swept(
-        #     sections=tagged_curves, 
-        #     set_direction=True,  direction=direction,
-        #     guides=tagged_guide_curves,
-        #     section_help_points=section_help_points, 
-        #     guide_help_points=guide_help_points,
-        #     preserve_shape=False, align_points=guide_curves[0]
-        # )
+        tagged_curves = curves[-1][1]
+        help_points = [point[0] for point in cross_sections[-1][1]]
+        surface, msg = nx.fill_hole(curves=tagged_curves, help_points=help_points)
+        print(msg)
 
         nx.close_all(prt_file=prt_file)

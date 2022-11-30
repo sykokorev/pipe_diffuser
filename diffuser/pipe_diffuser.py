@@ -1,5 +1,4 @@
 import math
-from re import A
 
 from mathlib.dual_quaternion import DualQuaternion as DQ
 from mathlib.quaternion import Quaternion as Q
@@ -28,6 +27,9 @@ class PipeDiffuser:
         self.__lengths = kwargs.get('lengths', [])
         self.__cross_sections = []
         self.__ml_bezier = None
+        self.__rexit = kwargs.get('r_exit_case', 100)
+        self.__radial_gap = kwargs.get('radial_gap', 0.2)
+
 
     @property
     def lengths(self):
@@ -85,6 +87,14 @@ class PipeDiffuser:
     def bezier_mean_line(self):
         return self.__ml_bezier
 
+    @property
+    def rexit(self):
+        return self.__rexit
+
+    @property
+    def radial_gap(self):
+        return self.__radial_gap
+
     @lengths.setter
     def lengths(self, points: list):
         if hasattr(points, '__iter__') and check_points(points=points):
@@ -112,7 +122,7 @@ class PipeDiffuser:
 
     @rimp.setter
     def rimp(self, value: float):
-        if isinstance(value, float):
+        if isinstance(value, (int, float)):
             self.__rimp = value
 
     @xbeta.setter
@@ -122,12 +132,12 @@ class PipeDiffuser:
     
     @length_star.setter
     def length_star(self, value: float):
-        if isinstance(value, float):
+        if isinstance(value, (int, float)):
             self.__length_star = value
 
     @del_length_star.setter
     def del_length_star(self, value: float):
-        if isinstance(value, float):
+        if isinstance(value, (int, float)):
             self.__del_length_star = value
 
     @xteta.setter
@@ -135,6 +145,16 @@ class PipeDiffuser:
         if hasattr(xbeta, '__iter__') and hasattr(xr, '__iter__'):
             if check_points(points=xbeta) and check_points(points=xr):
                 self.__calc_xteta(xbeta=xbeta, xr=xr)
+
+    @rexit.setter
+    def rexit(self, value: float):
+        if isinstance(value, (int, float)):
+            self.__rexit = value
+
+    @radial_gap.setter
+    def radial_gap(self, value: float):
+        if isinstance(value, (int, float)):
+            self.__radial_gap = value
 
     def __calc_xteta(self, xbeta: list, xr: list):
 
@@ -170,45 +190,65 @@ class PipeDiffuser:
 
     def compute_cross_section(self, wh: float=1.0, area: float=1.0):
 
-        h = (area / (wh - 1 + math.pi / 4)) ** 0.5
-        w = wh * h
-        c1 = Circle(center=[-w/2+h/2, 0.0, 0.0], radius=h/2)
-        c2 = Circle(center=[w/2-h/2, 0.0, 0.0], radius=h/2)
         cross_section = []
 
         if wh == 1:
+            radius = (area / math.pi) ** 0.5
+            c1 = Circle(center=[0.0, 0.0, 0.0], radius=radius)
+            c2 = Circle(center=[0.0, 0.0, 0.0], radius=radius)
             cross_section.append([
                 point for point in c1.get_points(
-                    a1=3*math.pi/2 - math.radians(5), a2=math.pi/2 + math.radians(5),
+                    a1=3*math.pi/2 - math.radians(1.5), a2=math.pi/2 + math.radians(1.5),
                     num_points=3)
             ])
             cross_section.append([
                 point for point in c1.get_points(
-                    a1=math.pi/2 + math.radians(5), a2=math.pi/2 - math.radians(5),
-                    num_points=2)
-            ])
-            cross_section.append([
-                point for point in c2.get_points(
-                    a1=math.pi/2 - math.radians(5), a2=-math.pi/2 + math.radians(5),
+                    a1=math.pi/2 + math.radians(1.5), a2=math.pi/2 - math.radians(1.5),
                     num_points=3)
             ])
             cross_section.append([
                 point for point in c2.get_points(
-                    a1=-math.pi/2 + math.radians(5), a2=3*math.pi/2 - math.radians(5),
-                    num_points=2)
+                    a1=math.pi/2 - math.radians(1.5), a2=-math.pi/2 + math.radians(1.5),
+                    num_points=3)
+            ])
+            cross_section.append([
+                point for point in c2.get_points(
+                    a1=-math.pi/2 + math.radians(1.5), a2=-math.pi/2 - math.radians(1.5),
+                    num_points=3)
             ])
         else:
-            line1 = Line(points=[[-w/2+h/2, h/2, 0.0], [w/2-h/2, h/2, 0.0]])
-            line2 = Line(points=[[w/2-h/2, -h/2, 0.0], [-w/2+h/2, -h/2, 0.0]])
+            h = (area / (wh - 1 + math.pi / 4)) ** 0.5
+            w = wh * h
+            c1 = Circle(center=[-w/2+h/2, 0.0, 0.0], radius=h/2)
+            c2 = Circle(center=[w/2-h/2, 0.0, 0.0], radius=h/2)
+            rup = self.rexit - self.radial_gap
+            x0 = 0.0
+            y0 = 0.0 - ((rup - c1.radius) ** 2 - c1.center_point[0] ** 2) ** 0.5
+
+            c3 = Circle(center=[x0, y0, 0.0], radius=rup)
+            teta = math.asin(abs(c1.center_point[0]) / (c3.radius - c1.radius))
+
+            rdown = self.rexit - self.radial_gap - 2 * c1.radius
+            x0 = 0.0
+            y0 = 0.0 - ((rdown + c1.radius) ** 2 - c1.center_point[0] ** 2) ** 0.5
+            c4 = Circle(center=[x0, y0, 0.0], radius=rdown)
+
             cross_section.append([
-                point for point in c1.get_points(a1=3*math.pi/2, a2=math.pi/2, num_points=3)
+                point for point in c1.get_points(a1=(3*math.pi/2+teta), a2=(math.pi/2+teta), num_points=3)
             ])
-            cross_section.append([line1.first_point, line1.last_point])
+
             cross_section.append([
-                point for point in c2.get_points(a1=math.pi/2, a2=-math.pi/2, num_points=3)
+                point for point in c3.get_points(a1=(math.pi/2+teta), a2=(math.pi/2-teta), num_points=3)
             ])
-            cross_section.append([line2.first_point, line2.last_point])
-        
+
+            cross_section.append([
+                point for point in c2.get_points(a1=(math.pi/2-teta), a2=(-math.pi/2-teta), num_points=3)
+            ])
+
+            cross_section.append([
+                point for point in c4.get_points(a1=(math.pi/2-teta), a2=(math.pi/2+teta), num_points=3)
+            ])
+
         return cross_section
             
     def compute_cross_sections(self, wh: list=[], area: list=[], lengths: list=[]):

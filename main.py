@@ -3,7 +3,9 @@ import os
 import logging
 import subprocess
 import json
-
+import math
+import tkinter as tk
+import matplotlib.pyplot as plt
 
 import utils.p1112_parser as p1112
 
@@ -12,27 +14,36 @@ from mathlib.bezier import *
 from mathlib.line_interpolation import LineInterpolation
 from diffuser.pipe_diffuser import PipeDiffuser as diffuser
 
-from utils.open_file import *
-from utils.utils import find_nx_journal_run
+from gui.gui import *
+from utils.utils import find_nx_journal_run, select_file
+
+from chart.chart import PlotData
 
 
 if __name__ == "__main__":
 
+    # GUI
+    font = ("Helvetica", 14)
+    root = tk.Tk()
+    window = GUI(master=root)
+    root.mainloop()
+    indata_file = window.indata_file
+    saveas = window.saveas
+    num_sec = window.num_sec
+    
+    if not num_sec:
+        tk.messagebox.showerror("showerror", "Number of section can't be equal 0")
+        sys.exit(-1)
+
     units = 25.4
 
-    indata_file = select_file(
-        filetypes=(('p1112 Data Files', '*.p1112'), ('All Files', '*.*')),
-        initialdir='/',
-        title='Open p1112 Indata File'
-    )
-
     logger = logging.getLogger(__name__)
-    logger_file = 'diffuser.log'
+    logger_file = os.path.join(os.path.split(saveas)[0], 'diffuser.log')
+
     if os.path.exists(logger_file):
         os.remove(logger_file)
     logging.basicConfig(filename=logger_file, level=logging.DEBUG)
 
-    saveas = save_file_as(title='Save NX model file')
     outdata_dir = os.path.join(os.path.split(saveas)[0], 'outdata')
     
     if not os.path.exists(outdata_dir):
@@ -78,6 +89,21 @@ if __name__ == "__main__":
         msg = 'Area distribution has not been found. Input data will be applied.'
         logger.info(msg)
 
+    # Area distribution
+    radius_dist = [
+        (a[1] / math.pi) ** 0.5 for a in area[:2]
+    ]
+    radius = linspace(start=radius_dist[0], stop=radius_dist[1], num_points=51)
+    length = linspace(start=area[0][0], stop=area[1][0], num_points=51)
+
+    area.pop(0)
+    area.pop(0)
+
+    area_dist = [[l, math.pi * r ** 2] for l, r in zip(length, radius)]
+    area_dist.extend(area)
+
+    area = area_dist
+
     twist, exception = p1112.distribution(in_file=indata_file, string=r'twist\s+\w+')
     if not exception:
         msg = 'Twist distribution has not been found. Input data will be applied.'
@@ -89,10 +115,11 @@ if __name__ == "__main__":
     xr_bezier = BezierThroughPoints(points=xr, npoints=2)
     xbeta_bezier = BezierThroughPoints(points=xbeta, npoints=2)
     wh_line = LineInterpolation(points=wh)
+
     area_line = LineInterpolation(points=area)
     twist_line = LineInterpolation(points=twist)
 
-    norm_length = arange(start=0.0, stop=1.02, step=0.02)
+    norm_length = linspace(start=0.0, stop=1.0, num_points=num_sec)
     xr_points = [xr_bezier.norm_length_point(ni)[1] for ni in norm_length]
     xr_points = [[abs(round(xri[0], 4)), abs(round(xri[1], 4))] for xri in xr_points]
 
@@ -105,7 +132,10 @@ if __name__ == "__main__":
         'xbeta': xbeta_points,
         'length_star': float(indata['len_star']),
         'del_length_star': float(indata['del_len_star']),
-        'rimp': float(indata['imp_tan_rad'])
+        'rimp': float(indata['imp_tan_rad']),
+        'radial_gap': float(indata['radial_gap']),
+        'r_exit_case': float(indata['r_exit_case'])
+
     }
 
     pipe_diffuser = diffuser(**diffuser_params)
@@ -115,7 +145,6 @@ if __name__ == "__main__":
     length = [mean_line_length * nl for nl in norm_length]
 
     point = xbeta_bezier.get_point(point=(0, 3.5))
-
     wh_points = wh_line.interpolate(points=length)
     area_points = area_line.interpolate(points=length)
     twist_points = twist_line.interpolate(points=length)
@@ -125,16 +154,39 @@ if __name__ == "__main__":
     pipe_diffuser.twist = twist_points
 
     cross_sections = pipe_diffuser.compute_cross_sections()
-    derivatives = pipe_diffuser.bezier_mean_line.derivatives(norm_length=norm_length)
 
     json_outdata = {
-        "twist": twist_points,
+        "twist": twist_points,  
         "mean_line": mean_line,
         "cross_sections": cross_sections,
         "prt": os.path.normpath(saveas)
     }
 
-    outdata_file = os.path.join(outdata_dir, 'json_data.json')
+    prt_file_name = os.path.splitext(os.path.split(saveas)[1])[0]
+    outdata_file = os.path.join(outdata_dir, f'{prt_file_name}_json_data.json')
+    mean_line_file = os.path.join(outdata_dir, f'{prt_file_name}_mean_line.dat')
+    cross_sections_file = os.path.join(outdata_dir, f'{prt_file_name}_cross_sections.dat')
+
+    with open(mean_line_file, 'w') as f:
+        for point in mean_line:
+            f.write(
+                f'{round(point[0] * units, 4)},{round(point[1] * units, 4)},' \
+                f'{round(point[2] * units, 4)}\n'
+            )
+
+    with open(cross_sections_file, 'w') as f:
+        for si, section in enumerate(cross_sections, 1):
+            f.write(f'Section {si}\n')
+            for i, shape in enumerate(section[1]):
+                if i in [0, 1, 2, 3]:
+                    f.write('Arc\n')
+                else:
+                    f.write('Line\n')
+                for points in shape:
+                    f.write(
+                        f'{round(points[0] * units, 4)},{round(points[1] * units, 4)},' \
+                        f'{round(points[2] * units, 4)}\n'
+                    )
 
     with open(outdata_file, 'w') as fo:
         json.dump(json_outdata, fo)
@@ -147,3 +199,74 @@ if __name__ == "__main__":
             '-args', os.path.normpath(os.path.abspath(outdata_file))
         ]
         code = subprocess.run(command)
+    else:
+        msg = "NX run journal file was not found\n. Please check if NX is installed.\n"
+        logger.error(msg)
+        tk.messagebox.showerror("showerror", msg)
+        of_params = {
+            'filetypes': ('NX run journal file', 'run_journal.exe'),
+            'title': 'Open NX run journal file'
+        }
+        nx_journal_run = select_file(**of_params)
+        if not nx_journal_run:
+            sys.exit(-1)
+        else:
+            command = [
+            nx_journal_run, ".nx_builder.py", 
+            '-args', os.path.normpath(os.path.abspath(outdata_file))
+            ]
+            code = subprocess.run(command)
+
+    # Create charts
+    pic_dir = os.path.join(outdata_dir, 'pictures')
+    if not os.path.exists(pic_dir):
+        try:
+            os.mkdir(pic_dir)
+        except FileExistsError as ex:
+            msg = 'Directory has not been created an error occurs {ex}'
+            logger.exception(msg)
+
+    # Norm Area (Ai/A1) distriburtion
+    a1 = area_points[0][1]
+    a_norm_distr = [[nl, a[1] / a1] for a, nl in zip(area_points, norm_length)]
+    fn = os.path.join(pic_dir, f'{prt_file_name}_area_dist.jpg')
+
+    x_major_ticks = [a[1] for a in a_norm_distr]
+    chart = PlotData(data=a_norm_distr, 
+        marker='s', color='b', markerfacecolor='b',
+        title='Norm Length vs Norm Area (Ai/A1)', axis_labels=['Norm length', 'Norm Area'],
+        major_ticks=[linspace(0.0, 1.0, 11), linspace(1, math.ceil(max(x_major_ticks)), 11)]
+    )
+    fig, ax = chart.plt_2Dgraph()
+    fig.set_size_inches(10, 10)
+    plt.savefig(fn, dpi=300, bbox_inches="tight", pad_inches=1)
+
+    # ECA
+    fn = os.path.join(pic_dir, f'{prt_file_name}_eca.jpg')
+    eca = [
+        [nl, (2 * math.degrees(math.atan((ai1[1] ** 0.5 - ai[1] ** 0.5) / math.pi ** 0.5) / (li1 - li) ))]
+        for ai1, ai, li1, li, nl in zip(area_points[1:], area_points, length[1:], length, norm_length)
+    ]
+    x_major_ticks = [e[1] for e in eca]
+    chart = PlotData(
+        data=eca, marker_color='r',
+        marker='s', color='r', markerfacecolor='r',
+        title='Norm Length vs ECA(LOC)', axis_labels=['Norm Length', 'ECA(LOC)'],
+        major_ticks=[
+            linspace(0.0, 1.0, 11), 
+            linspace(math.floor(min(x_major_ticks)), math.ceil(max(x_major_ticks)), 11)
+        ]
+    )
+    fig, ax = chart.plt_2Dgraph()
+    fig.set_size_inches(10, 10)
+    plt.savefig(fn, dpi=300, bbox_inches="tight", pad_inches=1)
+
+    os.remove(outdata_file)
+
+    # Temporary files
+    fn_area = os.path.join(outdata_dir, f'{prt_file_name}_area.dat')
+    with open(fn_area, 'w') as fo:
+        for area in area_points:
+            fo.write(f'{area[0]},{area[1]}\n')
+
+    tk.messagebox.showinfo("showinfo", "Execution completed.")

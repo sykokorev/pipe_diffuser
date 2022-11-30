@@ -5,7 +5,6 @@ import NXOpen as Nx
 import NXOpen.Features as Ftr
 
 from NXOpen import SectionCollection as SecCol
-from symbol import parameters
 
 
 class NX:
@@ -343,7 +342,6 @@ class NX:
         use_spine_curve = parameters.get('use_spine_curve', False)
         spine_curve = parameters.get('spine_curve', None)
         spine_help_point = parameters.get('spine_help_point', None)
-        # curves = parameters.get('curves')
 
         set_start_and_direction = parameters.get('set_start_and_direction', False)
         direction = parameters.get('direction')
@@ -361,6 +359,7 @@ class NX:
                 builder.AlignmentMethod.AlignCurve.DistanceTolerance = distance_tolerance
                 builder.AlignmentMethod.AlignCurve.ChainingTolerance = chaining_tolerance
                 builder.AlignmentMethod.AlignCurve.AngleTolerance = angle_tolerance
+                builder.PositionTolerance = distance_tolerance
             elif surface_type == 'through_curves':
                 builder = work_part.Features.CreateThroughCurvesBuilder(Ftr.Feature.Null)
                 builder.BodyPreference = Ftr.ThroughCurvesBuilder.BodyPreferenceTypes.Sheet
@@ -377,22 +376,17 @@ class NX:
                 builder.SectionTemplateString.DistanceTolerance = distance_tolerance
                 builder.SectionTemplateString.ChainingTolerance = chaining_tolerance
                 builder.SectionTemplateString.AngleTolerance = angle_tolerance
+                builder.PositionTolerance = distance_tolerance
             else:
                 builder = work_part.Features.CreateThroughCurvesBuilder(Ftr.Feature.Null)
 
             # Set secionts
             sections = []
             for i, (obj, point) in enumerate(zip(section_curves, align_points)):
-
-                # studio_spline = Nx.TaggedObjectManager.GetTaggedObject(obj)
-                # spline = studio_spline.GetEntities()[0]
                 help_point = [p * self.units for p in help_points[i]]
                 help_point = Nx.Point3d(*help_points[i])
 
-                # feature = [Ftr.Feature.Null] * 1
-                # feature[0] = studio_spline
-                # features.append(spline)
-                curves_ = [Nx.IBaseCurve.Null] * 4
+                curves_ = [Nx.IBaseCurve.Null] * len(obj)
                 for i, c in enumerate(obj):
                     curves_[i] =  Nx.TaggedObjectManager.GetTaggedObject(c)
                 rule = [work_part.ScRuleFactory.CreateRuleBaseCurveDumb(curves_)]
@@ -414,12 +408,16 @@ class NX:
                         pt = [p * self.units for p in point]
                         curve = section.GetStartAndDirection()[0]
                         section.SetStartAndDirection(curve, Nx.Point3d(*pt), Nx.Vector3d(*dir))
+                        section.DistanceTolerance = distance_tolerance
+                        section.ChainingTolerance = chaining_tolerance
                         builder.SectionsList.Append(section)
                         sections.append(section)
                     except Nx.NXException as ex:
                         print(str(ex))
                         section.Destroy()
                 else:
+                    section.DistanceTolerance = distance_tolerance
+                    section.ChainingTolerance = chaining_tolerance
                     builder.SectionsList.Append(section)
                     sections.append(section)
 
@@ -810,29 +808,31 @@ class NX:
         for shape, points in shapes.items():
             if shape == 'arc':
                 for arc in points:
-                    points = arc
-                    pt = [p * self.units for p in points[0]]
-                    statr_pt = Nx.Point3d(*pt)
-                    pt = [p * self.units for p in points[1]]
-                    help_point = pt
-                    point_on = Nx.Point3d(*pt)
-                    pt = [p * self.units for p in points[2]]
-                    end_point = Nx.Point3d(*pt)
-                    nx_arc = work_part.Curves.CreateArc(statr_pt, point_on, end_point, False)
-                    obj_tag = nx_arc[0].Tag
-                    curves.append(nx_arc[0])
-                    tagged_curves.append(obj_tag)
+                    if arc:
+                        points = arc
+                        pt = [p * self.units for p in points[0]]
+                        statr_pt = Nx.Point3d(*pt)
+                        pt = [p * self.units for p in points[1]]
+                        help_point = pt
+                        point_on = Nx.Point3d(*pt)
+                        pt = [p * self.units for p in points[2]]
+                        end_point = Nx.Point3d(*pt)
+                        nx_arc = work_part.Curves.CreateArc(statr_pt, point_on, end_point, False)
+                        obj_tag = nx_arc[0].Tag
+                        curves.append(nx_arc[0])
+                        tagged_curves.append(obj_tag)
             elif shape == 'line':
                 for line in points:
-                    points = line
-                    pt = [p * self.units for p in points[0]]
-                    start_point = Nx.Point3d(*pt)
-                    pt = [p * self.units for p in points[1]]
-                    end_point = Nx.Point3d(*pt)
-                    nx_line = work_part.Curves.CreateLine(start_point, end_point)
-                    obj_tag = nx_line.Tag
-                    curves.append(nx_line)
-                    tagged_curves.append(obj_tag)
+                    if line:
+                        points = line
+                        pt = [p * self.units for p in points[0]]
+                        start_point = Nx.Point3d(*pt)
+                        pt = [p * self.units for p in points[1]]
+                        end_point = Nx.Point3d(*pt)
+                        nx_line = work_part.Curves.CreateLine(start_point, end_point)
+                        obj_tag = nx_line.Tag
+                        curves.append(nx_line)
+                        tagged_curves.append(obj_tag)
 
         curve_dumb_rule = [work_part.ScRuleFactory.CreateRuleBaseCurveDumb(curves)]
 
@@ -848,6 +848,58 @@ class NX:
             nx_obj.HideParents()
             msg = 'Join curve has been created'
             return nx_obj.Tag, tagged_curves, msg
-        except Nx.Exception as ex:
+        except Nx.NXException as ex:
             msg = 'Join curve has not been created. An error occurred {}'.format(str(ex))
             return False, False, msg
+
+    def fill_hole(self, curves: list, help_points: list, **kwargs):
+
+        work_part = self.session.Parts.Work
+        builder = work_part.Features.FreeformSurfaceCollection.CreateFillHoleBuilder(Ftr.FillHole.Null)
+
+        tolerance = kwargs.get('tolerance', 0.01)
+        distance_tolerance = kwargs.get('distance_tolerance', 0.0095)
+        chaining_tolerance = kwargs.get('chaining_tolerance', 0.01)
+        continuity = kwargs.get('continuity', 'G1')
+
+        if continuity == 'G0':
+            nx_continuity = Ftr.FillHoleBuilder.ContinuityTypes.G1
+        elif continuity == 'G1':
+            nx_continuity = Ftr.FillHoleBuilder.ContinuityTypes.G1
+        else:
+            nx_continuity = Ftr.FillHoleBuilder.ContinuityTypes.G1
+
+        builder.Tolerance = tolerance
+        builder.DefaultEdgeContinuity = nx_continuity
+        builder.CurveChain.DistanceTolerance = distance_tolerance
+        builder.CurveChain.ChainingTolerance = chaining_tolerance
+        builder.SelectPassThrougCurves.DistanceTolerance = distance_tolerance
+        builder.SelectPassThrougCurves.ChainingTolerance = chaining_tolerance
+        builder.CurveChain.SetAllowedEntityTypes(Nx.Section.AllowTypes.OnlyCurves)
+
+        builder.CurveChain.AllowSelfIntersection(True)
+
+        markertonodelistitem = []
+
+        for i, (curve, help_point) in enumerate(zip(curves, help_points)):
+            arc = Nx.TaggedObjectManager.GetTaggedObject(curve)
+            nx_curves = [arc]
+            rule = [work_part.ScRuleFactory.CreateRuleBaseCurveDumb(nx_curves)]
+            help_point = [p * self.units for p in help_point]
+            nx_help_point = Nx.Point3d(*help_point)
+            builder.CurveChain.AddToSection(
+                rule, arc, Nx.NXObject.Null, Nx.NXObject.Null, nx_help_point, 
+                Nx.Section.Mode.Create, False)
+
+            markertonodelistitem.append(Ftr.FillHoleBuilder.BorderContinuity())
+            markertonodelistitem[i].BorderObject = arc
+            markertonodelistitem[i].Continuity = Ftr.FillHoleBuilder.ContinuityTypes.G0
+        
+        builder.SetBorderTypeItems(markertonodelistitem)
+        try:
+            nx_object = builder.Commit()
+            msg = 'Fill Hole Surface has been created'
+            return nx_object.Tag, msg
+        except Nx.NXException as ex:
+            msg = 'Fill Hole Surface has not been created. An error occurred {}'.format(str(ex))
+            return False, msg

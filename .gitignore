@@ -1,8 +1,6 @@
-*.log
-venv/
-indata/
-test_subprc.py
+test/
+output/
 outdata/
 *.prt
-*test*.py
-test.py
+venv/
+indata/

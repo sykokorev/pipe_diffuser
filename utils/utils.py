@@ -1,9 +1,37 @@
-from cProfile import run
-from logging import root
 import platform
 import os
 import re
 import glob
+
+from tkinter import filedialog as fd
+
+
+def select_file(**kwargs):
+
+    filetypes = kwargs.get('filetypes', None)
+    initialdir = kwargs.get('initialdir', None)
+    title = kwargs.get('title', None)
+
+    if not title:
+        title = 'Open a file'
+
+    if not filetypes:
+        filetypes = (
+            ('p1112 data files', '*.p1112'),
+            ('Data files', '*.dat'),
+            ('Text files', '*.txt'),
+            ('All files', '*.*')
+        )
+    if not initialdir:
+        initialdir = '/'
+
+    filename = fd.askopenfilename(
+        title=title,
+        initialdir=initialdir,
+        filetypes=filetypes
+    )
+
+    return filename
 
 
 def check_points(points: list, attrs: tuple=(int, float)) -> bool:
@@ -84,7 +112,8 @@ class Utils:
                 for i, line in enumerate(fi.readlines(), start=1):
                     if i in lines:
                         if split:
-                            line = line.strip().split(sep=sep)
+                            line = line.strip()#.split(sep=sep)
+                            line = re.split(sep, line)
                         out.append(line)
             return out
         except FileNotFoundError:
